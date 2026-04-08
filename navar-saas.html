@@ -1,0 +1,1752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f1b35">
+<title>Navar SaaS</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --p:#1a3a6e;--pd:#0f1b35;--pl:#2a52a0;
+  --a:#f5a623;--a2:#00c9a7;
+  --red:#e53935;--green:#1e8449;
+  --bg:#f0f3fa;--sur:#fff;--sur2:#f7f9fe;
+  --bdr:#e0e7f5;--txt:#0f1b35;--txt2:#5a6a8a;
+  --sh:0 2px 16px rgba(15,27,53,.10);
+  --shl:0 8px 40px rgba(15,27,53,.16);
+  --r:14px;--sw:240px;
+  --fn:'Plus Jakarta Sans',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{font-family:var(--fn);background:var(--bg);color:var(--txt);min-height:100vh;overflow-x:hidden;}
+.screen{display:none;min-height:100vh;}
+.screen.active{display:flex;}
+#login-screen{background:linear-gradient(135deg,var(--pd) 0%,var(--p) 60%,var(--pl) 100%);align-items:center;justify-content:center;flex-direction:column;padding:24px;}
+.ll{display:flex;align-items:center;gap:14px;margin-bottom:40px;}
+.ll-icon{width:56px;height:56px;background:var(--a);border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:1.8rem;box-shadow:0 8px 24px rgba(245,166,35,.4);}
+.ll .brand{font-size:2rem;font-weight:900;color:#fff;}
+.ll .sub{font-size:.8rem;color:rgba(255,255,255,.6);letter-spacing:2px;text-transform:uppercase;}
+.lc{background:#fff;border-radius:24px;padding:36px;width:100%;max-width:420px;box-shadow:0 24px 80px rgba(0,0,0,.3);}
+.lc-t{font-size:1.4rem;font-weight:800;color:var(--pd);margin-bottom:6px;}
+.lc-s{font-size:.85rem;color:var(--txt2);margin-bottom:28px;}
+.fg{margin-bottom:16px;}
+.fl{font-size:.78rem;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.6px;display:block;margin-bottom:6px;}
+.fi,.fs,.fta{width:100%;padding:12px 14px;border:2px solid var(--bdr);border-radius:10px;font-family:var(--fn);font-size:.95rem;color:var(--txt);background:var(--sur);transition:border-color .2s;}
+.fi:focus,.fs:focus,.fta:focus{outline:none;border-color:var(--p);}
+.fta{min-height:80px;resize:vertical;}
+.fs{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%235a6a8a' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+@media(max-width:600px){.frow{grid-template-columns:1fr;}}
+.dvd{border:none;border-top:1px solid var(--bdr);margin:20px 0;}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 20px;border-radius:10px;font-family:var(--fn);font-size:.9rem;font-weight:700;border:none;cursor:pointer;transition:all .18s;}
+.btn-p{background:var(--p);color:#fff;}
+.btn-p:hover{background:var(--pd);}
+.btn-s{background:var(--green);color:#fff;}
+.btn-d{background:var(--red);color:#fff;}
+.btn-o{background:transparent;color:var(--p);border:2px solid var(--bdr);}
+.btn-o:hover{border-color:var(--p);}
+.btn-g{background:transparent;border:none;}
+.btn-sm{padding:7px 14px;font-size:.82rem;}
+.btn-lg{padding:15px 28px;font-size:1rem;border-radius:12px;}
+.btn-blk{width:100%;}
+#app-screen{flex-direction:row;}
+.sidebar{width:var(--sw);background:var(--pd);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;overflow-y:auto;z-index:200;transition:transform .3s;}
+.sb-hdr{padding:20px 16px 16px;border-bottom:1px solid rgba(255,255,255,.08);}
+.sb-logo{display:flex;align-items:center;gap:10px;}
+.sb-logo-i{width:36px;height:36px;background:var(--a);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;}
+.sb-logo .brand{font-size:1rem;font-weight:800;color:#fff;}
+.sb-logo .ver{font-size:.65rem;color:rgba(255,255,255,.4);letter-spacing:1.5px;text-transform:uppercase;}
+nav{flex:1;padding:10px 0;}
+.ns{font-size:.65rem;font-weight:700;opacity:.4;padding:16px 16px 6px;letter-spacing:1.5px;text-transform:uppercase;color:#fff;}
+.ni{display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;font-size:.82rem;font-weight:500;color:rgba(255,255,255,.65);transition:all .18s;border-left:3px solid transparent;user-select:none;}
+.ni:hover{background:rgba(255,255,255,.08);color:#fff;}
+.ni.active{background:rgba(255,255,255,.12);color:#fff;border-left-color:var(--a);}
+.ni-ic{font-size:1rem;width:20px;text-align:center;}
+.nbadge{background:var(--a);color:var(--pd);font-size:.6rem;font-weight:800;padding:2px 6px;border-radius:20px;margin-left:auto;}
+.sb-ftr{padding:14px 16px;border-top:1px solid rgba(255,255,255,.08);}
+.sb-u{display:flex;align-items:center;gap:10px;}
+.sb-av{width:32px;height:32px;border-radius:50%;background:var(--a);display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:800;color:var(--pd);}
+.sb-un{font-size:.8rem;font-weight:700;color:#fff;}
+.sb-ur{font-size:.65rem;color:rgba(255,255,255,.45);}
+.main{margin-left:var(--sw);flex:1;display:flex;flex-direction:column;min-height:100vh;}
+.topbar{background:#fff;border-bottom:1px solid var(--bdr);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 1px 8px rgba(15,27,53,.06);}
+.tb-t{font-size:1.1rem;font-weight:800;color:var(--pd);}
+.tb-bc{font-size:.8rem;color:var(--txt2);}
+.tb-r{display:flex;align-items:center;gap:10px;}
+.tb-btn{background:var(--sur2);border:1px solid var(--bdr);border-radius:9px;padding:8px 14px;font-family:var(--fn);font-size:.82rem;font-weight:600;color:var(--txt);cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .18s;}
+.tb-btn:hover{border-color:var(--p);color:var(--p);}
+.content{flex:1;padding:24px;overflow-y:auto;}
+.page{display:none;}
+.page.active{display:block;}
+.ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;}
+.pt{font-size:1.4rem;font-weight:800;color:var(--pd);}
+.ps{font-size:.82rem;color:var(--txt2);margin-top:3px;}
+.sg{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;}
+@media(max-width:1100px){.sg{grid-template-columns:repeat(2,1fr);}}
+.sc{background:#fff;border-radius:var(--r);padding:20px;border:1px solid var(--bdr);position:relative;overflow:hidden;}
+.sc::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:14px 14px 0 0;}
+.sc.blue::after{background:var(--p);}
+.sc.green::after{background:var(--green);}
+.sc.gold::after{background:var(--a);}
+.sc.teal::after{background:var(--a2);}
+.sc.red::after{background:var(--red);}
+.sc-ic{font-size:1.8rem;margin-bottom:10px;}
+.sc-lb{font-size:.75rem;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.6px;}
+.sc-vl{font-size:1.7rem;font-weight:900;color:var(--pd);margin-top:4px;}
+.sc-ch{font-size:.75rem;color:var(--txt2);margin-top:4px;}
+.sc-ch.up{color:var(--green);}
+.sc-ch.dn{color:var(--red);}
+.card{background:#fff;border-radius:var(--r);border:1px solid var(--bdr);margin-bottom:20px;overflow:hidden;}
+.ch{padding:16px 20px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;}
+.ct{font-size:.92rem;font-weight:800;color:var(--pd);}
+.cb{padding:20px;}
+.cb.np{padding:0;}
+table{width:100%;border-collapse:collapse;font-size:.84rem;}
+th{background:var(--sur2);padding:11px 16px;text-align:left;font-size:.72rem;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--bdr);}
+td{padding:12px 16px;border-bottom:1px solid var(--bdr);}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:#fafbff;}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:700;}
+.bg{background:#e6f9f2;color:#1e8449;}
+.br{background:#fdecea;color:#e53935;}
+.bo{background:#fff8e1;color:#c17f00;}
+.bb{background:#e8eeff;color:var(--p);}
+.brand-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-bottom:20px;}
+.brand-card{background:#fff;border-radius:var(--r);border:1px solid var(--bdr);overflow:hidden;transition:box-shadow .2s,transform .2s;}
+.brand-card:hover{box-shadow:var(--shl);transform:translateY(-2px);}
+.bc-hdr{padding:20px;}
+.bc-hdr.blue{background:linear-gradient(135deg,var(--p),var(--pl));}
+.bc-hdr.gold{background:linear-gradient(135deg,#c17f00,var(--a));}
+.bc-hdr.teal{background:linear-gradient(135deg,#007a6b,var(--a2));}
+.bc-hdr.red{background:linear-gradient(135deg,#b71c1c,var(--red));}
+.bc-logo{width:48px;height:48px;background:rgba(255,255,255,.2);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin-bottom:12px;}
+.bc-nm{font-size:1.1rem;font-weight:800;color:#fff;}
+.bc-cd{font-size:.72rem;color:rgba(255,255,255,.6);margin-top:2px;}
+.bc-body{padding:16px;}
+.bc-stats{display:flex;gap:16px;margin-bottom:12px;}
+.bc-stat{flex:1;text-align:center;}
+.bc-sv{font-size:1.2rem;font-weight:800;color:var(--pd);}
+.bc-sl{font-size:.68rem;color:var(--txt2);margin-top:2px;}
+.bc-acts{display:flex;gap:8px;margin-top:12px;}
+.store-card{background:#fff;border-radius:var(--r);border:1px solid var(--bdr);padding:16px;display:flex;align-items:center;gap:14px;margin-bottom:10px;transition:box-shadow .2s;}
+.store-card:hover{box-shadow:var(--sh);}
+.si{width:44px;height:44px;border-radius:12px;background:var(--sur2);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;}
+.s-info{flex:1;}
+.s-nm{font-size:.92rem;font-weight:700;color:var(--pd);}
+.s-mt{font-size:.75rem;color:var(--txt2);margin-top:2px;}
+.s-ex{font-size:.72rem;margin-top:4px;}
+.s-ex.ok{color:var(--green);}
+.s-ex.warn{color:var(--a);}
+.s-ex.dead{color:var(--red);}
+.exbar{height:6px;background:var(--bdr);border-radius:3px;overflow:hidden;margin-top:6px;}
+.exfill{height:100%;border-radius:3px;}
+.exfill.ok{background:var(--a2);}
+.exfill.warn{background:var(--a);}
+.exfill.dead{background:var(--red);}
+.s-acts{display:flex;gap:6px;flex-shrink:0;}
+.role-list{display:flex;flex-direction:column;gap:10px;}
+.ri{background:#fff;border-radius:var(--r);border:1px solid var(--bdr);padding:16px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:all .18s;}
+.ri:hover{border-color:var(--p);box-shadow:var(--sh);}
+.ri.sel{border-color:var(--p);background:var(--sur2);}
+.ri-ic{width:40px;height:40px;border-radius:10px;background:var(--sur2);display:flex;align-items:center;justify-content:center;font-size:1.2rem;}
+.ri-nm{font-size:.9rem;font-weight:700;color:var(--pd);}
+.ri-ds{font-size:.75rem;color:var(--txt2);margin-top:2px;}
+.ri-pc{font-size:.72rem;color:var(--p);font-weight:700;background:var(--sur2);padding:3px 10px;border-radius:20px;margin-left:auto;}
+.perm-sec{margin-bottom:20px;}
+.perm-sec-t{font-size:.8rem;font-weight:800;color:var(--pd);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:8px;}
+.perm-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+@media(max-width:800px){.perm-grid{grid-template-columns:repeat(2,1fr);}}
+.perm-it{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--sur2);border-radius:8px;cursor:pointer;}
+.perm-it:hover{background:var(--bdr);}
+.pcb{width:18px;height:18px;border-radius:5px;border:2px solid var(--bdr);background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.pcb.on{background:var(--p);border-color:var(--p);}
+.pcb.on::after{content:'checkmark';font-size:.65rem;color:#fff;font-weight:800;}
+.plb{font-size:.78rem;font-weight:500;}
+.two-col{display:grid;grid-template-columns:280px 1fr;gap:20px;}
+@media(max-width:900px){.two-col{grid-template-columns:1fr;}}
+.u-av{width:34px;height:34px;border-radius:50%;background:var(--p);display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:800;color:#fff;}
+.modal-ov{display:none;position:fixed;inset:0;background:rgba(15,27,53,.5);z-index:9000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);}
+.modal-ov.open{display:flex;}
+.modal{background:#fff;border-radius:20px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 80px rgba(0,0,0,.2);animation:mIn .25s ease;}
+.modal.lg{max-width:760px;}
+@keyframes mIn{from{opacity:0;transform:scale(.94);}to{opacity:1;transform:scale(1);}}
+.mh{padding:20px 24px 16px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;}
+.mt{font-size:1.1rem;font-weight:800;color:var(--pd);}
+.mc-btn{background:var(--sur2);border:none;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:.9rem;color:var(--txt2);display:flex;align-items:center;justify-content:center;}
+.mc-btn:hover{background:var(--bdr);}
+.mb{padding:24px;}
+.mf{padding:16px 24px;border-top:1px solid var(--bdr);display:flex;gap:10px;justify-content:flex-end;}
+#toasts{position:fixed;bottom:24px;right:24px;z-index:99999;display:flex;flex-direction:column;gap:8px;}
+.toast{background:#fff;border:1px solid var(--bdr);border-radius:12px;padding:12px 18px;font-size:.85rem;font-weight:600;color:var(--txt);box-shadow:var(--shl);display:flex;align-items:center;gap:8px;animation:tIn .3s ease;min-width:240px;}
+.toast.ok{border-left:4px solid var(--green);}
+.toast.err{border-left:4px solid var(--red);}
+.toast.inf{border-left:4px solid var(--p);}
+@keyframes tIn{from{opacity:0;transform:translateX(20px);}to{opacity:1;transform:translateX(0);}}
+.sw-w{display:inline-flex;align-items:center;cursor:pointer;}
+.sw-w input{opacity:0;width:0;height:0;}
+.sw-sl{width:40px;height:22px;background:var(--bdr);border-radius:11px;transition:.2s;position:relative;}
+.sw-sl::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.2s;}
+.sw-w input:checked + .sw-sl{background:var(--p);}
+.sw-w input:checked + .sw-sl::after{transform:translateX(18px);}
+.sw-lb{margin-left:10px;font-size:.85rem;font-weight:500;}
+.fbar{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center;}
+.fsel{padding:8px 12px;border:1.5px solid var(--bdr);border-radius:8px;font-family:var(--fn);font-size:.82rem;color:var(--txt);background:#fff;cursor:pointer;}
+.fsel:focus{outline:none;border-color:var(--p);}
+.srch{position:relative;}
+.srch .fi{padding-left:36px;}
+.srch-ic{position:absolute;left:12px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--txt2);}
+.empty{text-align:center;padding:60px 24px;color:var(--txt2);}
+.empty-ic{font-size:3.5rem;margin-bottom:16px;}
+.empty-t{font-size:1.1rem;font-weight:700;color:var(--pd);margin-bottom:8px;}
+.mob-btn{display:none;background:transparent;border:none;font-size:1.3rem;cursor:pointer;padding:4px;}
+.sb-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:150;}
+@media(max-width:900px){
+  .sidebar{transform:translateX(-100%);}
+  .sidebar.open{transform:translateX(0);}
+  .main{margin-left:0;}
+  .mob-btn{display:block;}
+  .sb-ov.open{display:block;}
+  .sg{grid-template-columns:1fr 1fr;}
+}
+</style>
+</head>
+<body>
+
+<div id="login-screen" class="screen active">
+  <div class="ll">
+    <div class="ll-icon">&#127978;</div>
+    <div><div class="brand">Navar</div><div class="sub">SaaS &middot; Cloud POS</div></div>
+  </div>
+  <div class="lc">
+    <div class="lc-t">Welcome back &#128075;</div>
+    <div class="lc-s">Sign in to your Navar SaaS dashboard</div>
+    <div class="fg"><label class="fl">Username or Email</label><input type="text" class="fi" id="l-email" value="admin"></div>
+    <div class="fg"><label class="fl">Password</label><input type="password" class="fi" id="l-pass" value="admin123"></div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:20px;"><span style="font-size:.82rem;color:var(--p);cursor:pointer;font-weight:600;">Forgot password?</span></div>
+    <button id="btn-login" class="btn btn-p btn-blk btn-lg">Sign In &#8594;</button>
+    <div style="text-align:center;margin-top:20px;font-size:.8rem;color:var(--txt2);">Demo: admin / admin123</div>
+  </div>
+</div>
+
+<div id="app-screen" class="screen">
+  <div class="sb-ov" id="sb-ov"></div>
+  <div class="sidebar" id="sidebar">
+    <div class="sb-hdr">
+      <div class="sb-logo">
+        <div class="sb-logo-i">&#127978;</div>
+        <div><div class="brand">Navar SaaS</div><div class="ver">v2.0 &middot; Cloud</div></div>
+      </div>
+    </div>
+    <nav>
+      <div class="ns">Overview</div>
+      <div class="ni active" data-pg="dashboard"><span class="ni-ic">&#128202;</span> Dashboard</div>
+      <div class="ns">Brand &amp; Stores</div>
+      <div class="ni" data-pg="brands"><span class="ni-ic">&#127970;</span> Brands <span class="nbadge" id="brand-badge">2</span></div>
+      <div class="ni" data-pg="stores"><span class="ni-ic">&#127978;</span> Stores / Branches</div>
+      <div class="ni" data-pg="expiry"><span class="ni-ic">&#128197;</span> Expiry Manager</div>
+      <div class="ns">User Management</div>
+      <div class="ni" data-pg="roles"><span class="ni-ic">&#128737;</span> Roles &amp; Permissions</div>
+      <div class="ni" data-pg="users"><span class="ni-ic">&#128101;</span> Users</div>
+      <div class="ns">System</div>
+      <div class="ni" data-pg="invoices"><span class="ni-ic">&#128196;</span> Invoice Templates</div>
+      <div class="ni" data-pg="settings"><span class="ni-ic">&#9881;</span> Settings</div>
+    </nav>
+    <div class="sb-ftr">
+      <div class="sb-u">
+        <div class="sb-av" id="sb-av">SA</div>
+        <div style="flex:1;"><div class="sb-un" id="sb-nm">Super Admin</div><div class="sb-ur" id="sb-rl">Owner</div></div>
+        <button id="btn-logout" class="btn btn-g btn-sm" style="color:rgba(255,255,255,.4);font-size:.75rem;">Exit</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="mob-btn" id="mob-btn">&#9776;</button>
+        <div><div class="tb-t" id="tb-t">Dashboard</div><div class="tb-bc" id="tb-bc">Navar SaaS / Dashboard</div></div>
+      </div>
+      <div class="tb-r">
+        <button id="btn-sync" class="tb-btn">&#128260; Sync</button>
+        <button id="btn-new-store-top" class="tb-btn" style="background:var(--p);color:#fff;border-color:var(--p);">+ New Store</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <div class="page active" id="page-dashboard">
+        <div class="ph">
+          <div><div class="pt">Dashboard Overview</div><div class="ps">Your SaaS platform at a glance</div></div>
+          <div style="font-size:.82rem;color:var(--txt2);">&#128197; <span id="dash-date"></span></div>
+        </div>
+        <div class="sg">
+          <div class="sc blue"><div class="sc-ic">&#127970;</div><div class="sc-lb">Total Brands</div><div class="sc-vl" id="ds-brands">2</div><div class="sc-ch up">&#8593; 1 this month</div></div>
+          <div class="sc teal"><div class="sc-ic">&#127978;</div><div class="sc-lb">Active Stores</div><div class="sc-vl" id="ds-stores">4</div><div class="sc-ch up">&#8593; 2 this month</div></div>
+          <div class="sc gold"><div class="sc-ic">&#128101;</div><div class="sc-lb">Total Users</div><div class="sc-vl" id="ds-users">5</div><div class="sc-ch up">&#8593; 3 this week</div></div>
+          <div class="sc red"><div class="sc-ic">&#9888;</div><div class="sc-lb">Expiring Soon</div><div class="sc-vl" id="ds-expiry">2</div><div class="sc-ch dn">within 30 days</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+          <div class="card"><div class="ch"><div class="ct">&#127978; Recent Stores</div><button class="btn btn-sm btn-o" id="d-v-stores">View All</button></div><div class="cb np"><table><thead><tr><th>Store</th><th>Brand</th><th>Status</th></tr></thead><tbody id="d-stores-tb"></tbody></table></div></div>
+          <div class="card"><div class="ch"><div class="ct">&#128197; Expiry Alerts</div><button class="btn btn-sm btn-o" id="d-v-expiry">Manage</button></div><div class="cb" id="d-expiry"></div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="card"><div class="ch"><div class="ct">&#128100; Recent Users</div><button class="btn btn-sm btn-o" id="d-v-users">View All</button></div><div class="cb np"><table><thead><tr><th>Name</th><th>Role</th><th>Store</th></tr></thead><tbody id="d-users-tb"></tbody></table></div></div>
+          <div class="card"><div class="ch"><div class="ct">&#128737; Roles Summary</div><button class="btn btn-sm btn-o" id="d-v-roles">Manage</button></div><div class="cb" id="d-roles"></div></div>
+        </div>
+      </div>
+
+      <div class="page" id="page-brands">
+        <div class="ph"><div><div class="pt">Brands</div><div class="ps">Manage your brand portfolio</div></div><button class="btn btn-p" id="btn-new-brand">+ New Brand</button></div>
+        <div class="brand-grid" id="brand-grid"></div>
+      </div>
+
+      <div class="page" id="page-stores">
+        <div class="ph"><div><div class="pt">Stores / Branches</div><div class="ps">All branches across all brands</div></div><button class="btn btn-p" id="btn-new-store">+ New Store</button></div>
+        <div class="fbar">
+          <div class="srch" style="flex:1;max-width:280px;"><span class="srch-ic">&#128269;</span><input type="text" class="fi" id="store-srch" placeholder="Search stores..."></div>
+          <select class="fsel" id="store-bf"></select>
+          <select class="fsel" id="store-sf"><option value="">All Status</option><option value="active">Active</option><option value="expired">Expired</option></select>
+        </div>
+        <div id="stores-list"></div>
+      </div>
+
+      <div class="page" id="page-expiry">
+        <div class="ph"><div><div class="pt">Expiry Manager</div><div class="ps">Monitor and renew branch licenses</div></div></div>
+        <div class="sg" style="grid-template-columns:repeat(3,1fr);">
+          <div class="sc green"><div class="sc-ic">&#10003;</div><div class="sc-lb">Active</div><div class="sc-vl" id="exp-a">0</div></div>
+          <div class="sc gold"><div class="sc-ic">&#9888;</div><div class="sc-lb">Expiring in 30d</div><div class="sc-vl" id="exp-w">0</div></div>
+          <div class="sc red"><div class="sc-ic">&#10007;</div><div class="sc-lb">Expired</div><div class="sc-vl" id="exp-d">0</div></div>
+        </div>
+        <div class="card"><div class="ch"><div class="ct">&#128203; All Branch Licenses</div></div><div class="cb np"><table><thead><tr><th>Branch</th><th>Brand</th><th>Start</th><th>Expiry</th><th>Days Left</th><th>Status</th><th>Actions</th></tr></thead><tbody id="expiry-tb"></tbody></table></div></div>
+      </div>
+
+      <div class="page" id="page-roles">
+        <div class="ph"><div><div class="pt">Roles &amp; Permissions</div><div class="ps">Define what each role can access</div></div><button class="btn btn-p" id="btn-new-role">+ New Role</button></div>
+        <div class="two-col"><div class="role-list" id="roles-list"></div><div id="role-detail"><div class="empty"><div class="empty-ic">&#128737;</div><div class="empty-t">Select a Role</div><div>Click a role to view its permissions</div></div></div></div>
+      </div>
+
+      <div class="page" id="page-users">
+        <div class="ph"><div><div class="pt">Users</div><div class="ps">Manage store accounts and access</div></div><button class="btn btn-p" id="btn-new-user">+ Add User</button></div>
+        <div class="fbar">
+          <div class="srch" style="flex:1;max-width:280px;"><span class="srch-ic">&#128269;</span><input type="text" class="fi" id="user-srch" placeholder="Search users..."></div>
+          <select class="fsel" id="user-sf"></select>
+          <select class="fsel" id="user-rf"></select>
+        </div>
+        <div class="card"><div class="cb np"><table><thead><tr><th>User</th><th>Email</th><th>Role</th><th>Store</th><th>Status</th><th>Actions</th></tr></thead><tbody id="users-tb"></tbody></table></div></div>
+      </div>
+
+      <div class="page" id="page-invoices">
+        <div class="ph">
+          <div><div class="pt">Invoice Templates</div><div class="ps">Customise invoice layout per store</div></div>
+          <button class="btn btn-p" id="btn-new-invoice">+ New Template</button>
+        </div>
+        <div class="fbar">
+          <select class="fsel" id="inv-store-f"></select>
+        </div>
+        <div id="invoice-list"></div>
+      </div>
+
+      <div class="page" id="page-settings">
+        <div class="ph"><div class="pt">Settings</div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <div class="card"><div class="ch"><div class="ct">Platform Info</div></div><div class="cb">
+            <div class="fg"><label class="fl">Platform Name</label><input type="text" class="fi" value="Navar SaaS"></div>
+            <div class="fg"><label class="fl">Default Expiry</label><select class="fs"><option>1 Month</option><option selected>3 Months</option><option>6 Months</option><option>1 Year</option></select></div>
+            <button class="btn btn-p" id="btn-save-settings">Save Settings</button>
+          </div></div>
+          <div class="card"><div class="ch"><div class="ct">Notifications</div></div><div class="cb" style="display:flex;flex-direction:column;gap:14px;">
+            <label class="sw-w"><input type="checkbox" checked><span class="sw-sl"></span><span class="sw-lb">Email on store expiry</span></label>
+            <label class="sw-w"><input type="checkbox" checked><span class="sw-sl"></span><span class="sw-lb">Alert 30 days before expiry</span></label>
+            <label class="sw-w"><input type="checkbox"><span class="sw-sl"></span><span class="sw-lb">Alert 7 days before expiry</span></label>
+            <label class="sw-w"><input type="checkbox" checked><span class="sw-sl"></span><span class="sw-lb">New user registration</span></label>
+          </div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- MODALS -->
+
+<!-- Invoice Template Modal -->
+<div class="modal-ov" id="m-invoice">
+  <div class="modal lg">
+    <div class="mh"><div class="mt" id="m-inv-t">New Invoice Template</div><button class="mc-btn" id="mc-inv">&#10005;</button></div>
+    <div class="mb">
+      <div class="frow">
+        <div class="fg"><label class="fl">Template Name *</label><input type="text" class="fi" id="inv-name" placeholder="e.g. Main Receipt"></div>
+        <div class="fg"><label class="fl">Assign to Store *</label><select class="fs" id="inv-store"></select></div>
+      </div>
+      <div class="frow">
+        <div class="fg"><label class="fl">Business Name</label><input type="text" class="fi" id="inv-biz" placeholder="Store display name"></div>
+        <div class="fg"><label class="fl">Tagline / Sub</label><input type="text" class="fi" id="inv-tag" placeholder="e.g. Thank you for shopping!"></div>
+      </div>
+      <div class="frow">
+        <div class="fg"><label class="fl">Address Line 1</label><input type="text" class="fi" id="inv-addr1" placeholder="Street address"></div>
+        <div class="fg"><label class="fl">Address Line 2</label><input type="text" class="fi" id="inv-addr2" placeholder="City, Country"></div>
+      </div>
+      <div class="frow">
+        <div class="fg"><label class="fl">Phone</label><input type="text" class="fi" id="inv-phone" placeholder="+974 ..."></div>
+        <div class="fg"><label class="fl">Tax / VAT Number</label><input type="text" class="fi" id="inv-tax" placeholder="VAT: 300xxxxxxxxx"></div>
+      </div>
+      <div class="fg"><label class="fl">Footer Message</label><textarea class="fta" id="inv-footer" placeholder="Thank you for your business! Returns within 7 days with receipt." style="min-height:60px;"></textarea></div>
+      <hr class="dvd">
+      <div style="font-size:.88rem;font-weight:700;color:var(--pd);margin-bottom:14px;">Layout Options</div>
+      <div class="frow">
+        <div class="fg"><label class="fl">Paper Size</label>
+          <select class="fs" id="inv-paper"><option value="80mm">80mm Thermal</option><option value="58mm">58mm Thermal</option><option value="A4">A4</option><option value="A5">A5</option></select>
+        </div>
+        <div class="fg"><label class="fl">Logo / Header Style</label>
+          <select class="fs" id="inv-style"><option value="simple">Simple Text</option><option value="bold">Bold Header</option><option value="minimal">Minimal</option></select>
+        </div>
+      </div>
+      <div class="frow">
+        <div class="fg">
+          <label class="fl">Show Tax on Invoice</label>
+          <label class="sw-w" style="margin-top:8px;"><input type="checkbox" id="inv-show-tax" checked><span class="sw-sl"></span><span class="sw-lb">Yes</span></label>
+        </div>
+        <div class="fg">
+          <label class="fl">Show Store Logo</label>
+          <label class="sw-w" style="margin-top:8px;"><input type="checkbox" id="inv-show-logo"><span class="sw-sl"></span><span class="sw-lb">Yes</span></label>
+        </div>
+      </div>
+      <hr class="dvd">
+      <div style="font-size:.88rem;font-weight:700;color:var(--pd);margin-bottom:10px;">Preview</div>
+      <div id="inv-preview" style="border:1px solid var(--bdr);border-radius:10px;padding:16px;background:var(--sur2);font-size:.8rem;line-height:1.6;max-width:320px;font-family:monospace;"></div>
+      <input type="hidden" id="inv-eid">
+    </div>
+    <div class="mf"><button class="btn btn-o" id="mc-inv2">Cancel</button><button class="btn btn-p" id="btn-save-invoice">Save Template</button></div>
+  </div>
+</div>
+
+
+<div class="modal-ov" id="m-brand">
+  <div class="modal">
+    <div class="mh"><div class="mt" id="m-brand-t">Create New Brand</div><button class="mc-btn" id="mc-brand">&#10005;</button></div>
+    <div class="mb">
+      <div class="frow"><div class="fg"><label class="fl">Brand Name *</label><input type="text" class="fi" id="b-name" placeholder="TCR Group"></div><div class="fg"><label class="fl">Brand Code *</label><input type="text" class="fi" id="b-code" placeholder="TCR"></div></div>
+      <div class="fg"><label class="fl">Description</label><textarea class="fta" id="b-desc" placeholder="Short description..."></textarea></div>
+      <div class="frow">
+        <div class="fg"><label class="fl">Color Theme</label><select class="fs" id="b-color"><option value="blue">Navy Blue</option><option value="gold">Gold</option><option value="teal">Teal</option><option value="red">Red</option></select></div>
+        <div class="fg"><label class="fl">Icon (emoji)</label><input type="text" class="fi" id="b-icon" maxlength="4" value="&#127970;"></div>
+      </div>
+      <div class="fg"><label class="fl">Contact</label><input type="text" class="fi" id="b-email" placeholder="contact info"></div>
+      <input type="hidden" id="b-eid">
+    </div>
+    <div class="mf"><button class="btn btn-o" id="mc-brand2">Cancel</button><button class="btn btn-p" id="btn-save-brand">Save Brand</button></div>
+  </div>
+</div>
+
+<div class="modal-ov" id="m-store">
+  <div class="modal lg">
+    <div class="mh"><div class="mt" id="m-store-t">Create New Store</div><button class="mc-btn" id="mc-store">&#10005;</button></div>
+    <div class="mb">
+      <div class="frow"><div class="fg"><label class="fl">Store Name *</label><input type="text" class="fi" id="s-name" placeholder="Main Branch"></div><div class="fg"><label class="fl">Brand *</label><select class="fs" id="s-brand"></select></div></div>
+      <div class="frow"><div class="fg"><label class="fl">Store Code</label><input type="text" class="fi" id="s-code" placeholder="BR-001"></div><div class="fg"><label class="fl">Type</label><select class="fs" id="s-type"><option>Restaurant</option><option>Retail</option><option>Cafe</option><option>Supermarket</option><option>Pharmacy</option><option>Other</option></select></div></div>
+      <div class="fg"><label class="fl">Address</label><input type="text" class="fi" id="s-addr" placeholder="Full address"></div>
+      <div class="frow"><div class="fg"><label class="fl">Phone</label><input type="text" class="fi" id="s-phone" placeholder="+974 ..."></div><div class="fg"><label class="fl">Contact</label><input type="text" class="fi" id="s-email" placeholder="store contact"></div></div>
+      <hr class="dvd">
+      <div style="font-size:.88rem;font-weight:700;color:var(--pd);margin-bottom:14px;">License &amp; Expiry</div>
+      <div class="frow"><div class="fg"><label class="fl">Start Date *</label><input type="date" class="fi" id="s-start"></div><div class="fg"><label class="fl">Expiry Date *</label><input type="date" class="fi" id="s-expiry"></div></div>
+      <hr class="dvd">
+      <div style="font-size:.88rem;font-weight:700;color:var(--pd);margin-bottom:14px;">Admin Login</div>
+      <div class="frow"><div class="fg"><label class="fl">Username *</label><input type="text" class="fi" id="s-user" placeholder="store.admin"></div><div class="fg"><label class="fl">Password *</label><input type="password" class="fi" id="s-pass" placeholder="password"></div></div>
+      <input type="hidden" id="s-eid">
+    </div>
+    <hr class="dvd">
+      <div style="font-size:.88rem;font-weight:700;color:var(--pd);margin-bottom:14px;">POS Feature Toggles</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;" id="store-feature-toggles">
+        <label class="sw-w"><input type="checkbox" id="ft-stock_count" checked><span class="sw-sl"></span><span class="sw-lb" style="font-size:.8rem;">Stock Count</span></label>
+        <label class="sw-w"><input type="checkbox" id="ft-truck_load" checked><span class="sw-sl"></span><span class="sw-lb" style="font-size:.8rem;">Truck Load</span></label>
+        <label class="sw-w"><input type="checkbox" id="ft-expenses" checked><span class="sw-sl"></span><span class="sw-lb" style="font-size:.8rem;">Expenses</span></label>
+        <label class="sw-w"><input type="checkbox" id="ft-targets" checked><span class="sw-sl"></span><span class="sw-lb" style="font-size:.8rem;">Targets</span></label>
+        <label class="sw-w"><input type="checkbox" id="ft-handover" checked><span class="sw-sl"></span><span class="sw-lb" style="font-size:.8rem;">Cash Handover</span></label>
+        <label class="sw-w"><input type="checkbox" id="ft-adv_orders" checked><span class="sw-sl"></span><span class="sw-lb" style="font-size:.8rem;">Advance Orders</span></label>
+        <label class="sw-w"><input type="checkbox" id="ft-collection" checked><span class="sw-sl"></span><span class="sw-lb" style="font-size:.8rem;">Collection</span></label>
+        <label class="sw-w"><input type="checkbox" id="ft-discount" checked><span class="sw-sl"></span><span class="sw-lb" style="font-size:.8rem;">Discounts</span></label>
+      </div>
+      <div style="font-size:.88rem;font-weight:700;color:var(--pd);margin-bottom:10px;margin-top:16px;">Finance Feature Toggles</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <label class="sw-w"><input type="checkbox" id="ft-purchases" checked><span class="sw-sl"></span><span class="sw-lb" style="font-size:.8rem;">Purchases</span></label>
+        <label class="sw-w"><input type="checkbox" id="ft-assets" checked><span class="sw-sl"></span><span class="sw-lb" style="font-size:.8rem;">Fixed Assets</span></label>
+        <label class="sw-w"><input type="checkbox" id="ft-liabilities" checked><span class="sw-sl"></span><span class="sw-lb" style="font-size:.8rem;">Liabilities</span></label>
+        <label class="sw-w"><input type="checkbox" id="ft-bank" checked><span class="sw-sl"></span><span class="sw-lb" style="font-size:.8rem;">Bank Reconciliation</span></label>
+        <label class="sw-w"><input type="checkbox" id="ft-salaries" checked><span class="sw-sl"></span><span class="sw-lb" style="font-size:.8rem;">Employee Salaries</span></label>
+      </div>
+    <div class="mf"><button class="btn btn-o" id="mc-store2">Cancel</button><button class="btn btn-p" id="btn-save-store">Save Store</button></div>
+  </div>
+</div>
+
+<div class="modal-ov" id="m-user">
+  <div class="modal">
+    <div class="mh"><div class="mt" id="m-user-t">Add User</div><button class="mc-btn" id="mc-user">&#10005;</button></div>
+    <div class="mb">
+      <div class="frow"><div class="fg"><label class="fl">Full Name *</label><input type="text" class="fi" id="u-name" placeholder="Ahmed Ali"></div><div class="fg"><label class="fl">Username *</label><input type="text" class="fi" id="u-uname" placeholder="ahmed.ali"></div></div>
+      <div class="fg"><label class="fl">Email / Contact</label><input type="text" class="fi" id="u-email" placeholder="contact info"></div>
+      <div class="frow"><div class="fg"><label class="fl">Password *</label><input type="password" class="fi" id="u-pass" placeholder="password"></div><div class="fg"><label class="fl">Confirm Password</label><input type="password" class="fi" id="u-pass2" placeholder="confirm"></div></div>
+      <div class="frow"><div class="fg"><label class="fl">Assign Store *</label><select class="fs" id="u-store"></select></div><div class="fg"><label class="fl">Role *</label><select class="fs" id="u-role"></select></div></div>
+      <div class="fg"><label class="fl">Phone</label><input type="text" class="fi" id="u-phone" placeholder="+974 ..."></div>
+      <input type="hidden" id="u-eid">
+    </div>
+    <div class="mf"><button class="btn btn-o" id="mc-user2">Cancel</button><button class="btn btn-p" id="btn-save-user">Save User</button></div>
+  </div>
+</div>
+
+<div class="modal-ov" id="m-role">
+  <div class="modal lg">
+    <div class="mh"><div class="mt" id="m-role-t">Create Role</div><button class="mc-btn" id="mc-role">&#10005;</button></div>
+    <div class="mb">
+      <div class="frow"><div class="fg"><label class="fl">Role Name *</label><input type="text" class="fi" id="r-name" placeholder="Manager"></div><div class="fg"><label class="fl">Description</label><input type="text" class="fi" id="r-desc" placeholder="Brief description"></div></div>
+      <hr class="dvd">
+      <div style="font-size:.88rem;font-weight:700;color:var(--pd);margin-bottom:16px;">Permissions</div>
+      <div id="r-perms"></div>
+      <input type="hidden" id="r-eid">
+    </div>
+    <div class="mf"><button class="btn btn-o" id="mc-role2">Cancel</button><button class="btn btn-p" id="btn-save-role">Save Role</button></div>
+  </div>
+</div>
+
+<div class="modal-ov" id="m-renew">
+  <div class="modal">
+    <div class="mh"><div class="mt">Renew License</div><button class="mc-btn" id="mc-renew">&#10005;</button></div>
+    <div class="mb">
+      <div style="margin-bottom:16px;font-size:.9rem;color:var(--txt2);">Renewing: <strong id="renew-nm" style="color:var(--pd);"></strong></div>
+      <div class="fg"><label class="fl">New Expiry Date *</label><input type="date" class="fi" id="renew-dt"></div>
+      <div class="fg"><label class="fl">Notes</label><input type="text" class="fi" id="renew-nt" placeholder="Invoice ref..."></div>
+      <input type="hidden" id="renew-sid">
+    </div>
+    <div class="mf"><button class="btn btn-o" id="mc-renew2">Cancel</button><button class="btn btn-s" id="btn-do-renew">Renew License</button></div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function() {
+
+// ═══════════════════════════════════════════════════════
+// NAVAR SAAS — Supabase Config
+// Replace with YOUR Supabase project URL and anon key
+// Get these from: supabase.com → Project → Settings → API
+// ═══════════════════════════════════════════════════════
+var SUPABASE_URL = 'https://syyaudfbilutkgsamjt.supabase.co';
+var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5eWF1ZGZiZmlsdXRrZ3NhbWp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NjU1OTMsImV4cCI6MjA5MTI0MTU5M30.s-eHveOcRFVXkNTg0NcwfUEnWuFUd9LShPaSJEaIW6o';
+var sb = null;
+
+function initSupabase() {
+  try {
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    return true;
+  } catch(e) {
+    console.warn('Supabase init failed:', e);
+    return false;
+  }
+}
+
+// ── DB helpers with error handling ──────────────────────
+async function dbFetch(table, filters) {
+  if (!sb) return [];
+  try {
+    var q = sb.from(table).select('*');
+    if (filters) {
+      Object.keys(filters).forEach(function(k) { q = q.eq(k, filters[k]); });
+    }
+    var res = await q.order('id', {ascending: true});
+    return res.data || [];
+  } catch(e) { console.warn('dbFetch error:', table, e); return []; }
+}
+
+async function dbInsert(table, data) {
+  if (!sb) return null;
+  try {
+    var res = await sb.from(table).insert(data).select().single();
+    return res.data;
+  } catch(e) { console.warn('dbInsert error:', table, e); return null; }
+}
+
+async function dbUpdate(table, id, data) {
+  if (!sb) return null;
+  try {
+    var res = await sb.from(table).update(data).eq('id', id).select().single();
+    return res.data;
+  } catch(e) { console.warn('dbUpdate error:', table, e); return null; }
+}
+
+async function dbDelete(table, id) {
+  if (!sb) return false;
+  try {
+    await sb.from(table).delete().eq('id', id);
+    return true;
+  } catch(e) { console.warn('dbDelete error:', table, e); return false; }
+}
+
+async function dbUpsert(table, data) {
+  if (!sb) return null;
+  try {
+    var res = await sb.from(table).upsert(data).select().single();
+    return res.data;
+  } catch(e) { console.warn('dbUpsert error:', table, e); return null; }
+}
+
+// ── Load all SaaS data from Supabase ────────────────────
+async function loadAllData() {
+  showLoading(true);
+  try {
+    var [brands, stores, roles, users, invTemplates] = await Promise.all([
+      dbFetch('navar_brands'),
+      dbFetch('navar_stores'),
+      dbFetch('navar_roles'),
+      dbFetch('navar_users'),
+      dbFetch('navar_invoice_templates'),
+    ]);
+
+    // Map to S state — handle both DB format and legacy format
+    S.brands = brands.map(function(b) {
+      return {id: b.id, name: b.name, code: b.code, desc: b.description || '', color: b.color || 'blue', icon: b.icon || '&#127970;', email: b.email || ''};
+    });
+
+    S.stores = stores.map(function(s) {
+      return {
+        id: s.id, brand: s.brand_id, name: s.name, code: s.code || '',
+        type: s.type || 'Retail', addr: s.address || '', phone: s.phone || '', email: s.email || '',
+        start: s.start_date || '', expiry: s.expiry_date || '',
+        user: s.admin_user || '', pass: s.admin_pass || '',
+        status: s.status || 'active',
+        features: typeof s.features === 'string' ? JSON.parse(s.features || '{}') : (s.features || {})
+      };
+    });
+
+    S.roles = roles.map(function(r) {
+      var perms = typeof r.permissions === 'string' ? JSON.parse(r.permissions || '[]') : (r.permissions || []);
+      return {id: r.id, name: r.name, desc: r.description || '', icon: r.icon || '&#128737;', perms: perms, store: r.store_id};
+    });
+
+    S.users = users.map(function(u) {
+      return {id: u.id, name: u.name, uname: u.username, email: u.email || '', role: u.role_id, store: u.store_id, phone: u.phone || '', status: u.status || 'active'};
+    });
+
+    S.invoices = invTemplates.map(function(t) {
+      return {
+        id: t.id, name: t.name, store: t.store_id,
+        biz: t.biz_name || '', tag: t.tagline || '',
+        addr1: t.address1 || '', addr2: t.address2 || '',
+        phone: t.phone || '', tax: t.tax_number || '',
+        footer: t.footer || '', paper: t.paper_size || '80mm',
+        style: t.style || 'simple',
+        showTax: t.show_tax !== false, showLogo: !!t.show_logo
+      };
+    });
+
+    document.getElementById('brand-badge').textContent = S.brands.length;
+  } catch(e) {
+    console.warn('loadAllData error:', e);
+    toast('Could not load data from Supabase. Using local data.', 'inf');
+  }
+  showLoading(false);
+}
+
+function showLoading(on) {
+  var lb = document.getElementById('saas-loading-bar');
+  if (lb) lb.style.display = on ? 'block' : 'none';
+}
+
+
+var S = {
+  user: null,
+  activeRole: null,
+  brands: [
+    {id:'b1',name:'TCR Group',code:'TCR',desc:'Trading & Retail',color:'blue',icon:'&#127970;',email:'info-tcr'},
+    {id:'b2',name:'FoodChain Co',code:'FCC',desc:'Restaurant Chain',color:'gold',icon:'&#127828;',email:'ops-fcc'}
+  ],
+  stores: [
+    {id:'s1',name:'TCR Main Branch',brand:'b1',code:'BR-001',type:'Retail',addr:'Al Sadd, Doha',phone:'+974 4444 1111',email:'main-tcr',start:'2024-01-01',expiry:'2026-06-30',user:'tcr.main',pass:'pass123',status:'active',features:{stock_count:true,truck_load:true,expenses:true,targets:true,handover:true,adv_orders:true,collection:true,purchases:true,assets:true,liabilities:true,bank:true,salaries:true}},
+    {id:'s2',name:'TCR Salwa Branch',brand:'b1',code:'BR-002',type:'Retail',addr:'Salwa Rd, Doha',phone:'+974 4444 2222',email:'salwa-tcr',start:'2024-03-01',expiry:'2026-04-25',user:'tcr.salwa',pass:'pass123',status:'active'},
+    {id:'s3',name:'TCR Industrial',brand:'b1',code:'BR-003',type:'Supermarket',addr:'Industrial Area',phone:'+974 4444 3333',email:'ind-tcr',start:'2023-06-01',expiry:'2026-03-15',user:'tcr.ind',pass:'pass123',status:'expired'},
+    {id:'s4',name:'FoodChain Villaggio',brand:'b2',code:'FC-001',type:'Restaurant',addr:'Villaggio Mall',phone:'+974 5555 1111',email:'vill-fcc',start:'2025-01-15',expiry:'2026-07-15',user:'fc.vill',pass:'pass123',status:'active',features:{stock_count:false,truck_load:false,expenses:true,targets:true,handover:true,adv_orders:false,collection:true,purchases:false,assets:true,liabilities:true,bank:true,salaries:true}},
+    {id:'s5',name:'FoodChain Landmark',brand:'b2',code:'FC-002',type:'Cafe',addr:'Landmark Mall',phone:'+974 5555 2222',email:'lmk-fcc',start:'2025-06-01',expiry:'2026-05-10',user:'fc.lmk',pass:'pass123',status:'active'}
+  ],
+  roles: [
+    {id:'r1',name:'Owner',desc:'Full access to everything',icon:'&#128081;',perms:['all']},
+    {id:'r2',name:'Manager',desc:'Manage store operations',icon:'&#129489;&#8205;&#128188;',perms:['order','report','employee','menu','table','printer','settings']},
+    {id:'r3',name:'Cashier',desc:'Process sales and orders',icon:'&#129534;',perms:['order','cash_drawer']},
+    {id:'r4',name:'Waiter',desc:'Take and manage orders',icon:'&#127869;',perms:['order']}
+  ],
+  users: [
+    {id:'u1',name:'Faisal Al Sayed',uname:'faisal',email:'faisal-tcr',role:'r2',store:'s1',phone:'+974 6111 1111',status:'active'},
+    {id:'u2',name:'Sameer Ahmed',uname:'sameer',email:'sameer-tcr',role:'r3',store:'s1',phone:'+974 6222 2222',status:'active'},
+    {id:'u3',name:'Ashraf Khalid',uname:'ashraf',email:'ashraf-tcr',role:'r3',store:'s2',phone:'+974 6333 3333',status:'active'},
+    {id:'u4',name:'Mahmood Ali',uname:'mahmood',email:'mahmood-tcr',role:'r2',store:'s3',phone:'+974 6444 4444',status:'suspended'},
+    {id:'u5',name:'Order Account',uname:'order',email:'order-tcr',role:'r4',store:'s1',phone:'',status:'active'}
+  ],
+  invoices: [
+    {id:'inv1',name:'Main Receipt',store:'s1',biz:'TCR Main Branch',tag:'Thank you for shopping!',addr1:'Al Sadd, Doha',addr2:'Qatar',phone:'+974 4444 1111',tax:'VAT300123456',footer:'Returns accepted within 7 days with receipt.',paper:'80mm',style:'simple',showTax:true,showLogo:false},
+    {id:'inv2',name:'FoodChain Receipt',store:'s4',biz:'FoodChain Villaggio',tag:'Bon Appetit!',addr1:'Villaggio Mall, Doha',addr2:'Qatar',phone:'+974 5555 1111',tax:'',footer:'Thank you for dining with us!',paper:'80mm',style:'bold',showTax:false,showLogo:false},
+  ],
+  perms: {
+    'Order':['cancel_order','view_recent','view_history','place_order','checkout','special_discount','discount','cancel_product','refund','settlement','end_of_day','add_customer','shift','open_cash_drawer','tips','change_payment'],
+    'Cash Drawer':['cash_drawer_manage'],
+    'Report':['daily_report','daybook','order_report','payment_type','customer_ledger','cancelled_orders','expense_report'],
+    'Employee':['view_employees','manage_employees'],
+    'Menu':['view_menu','manage_menu'],
+    'Table':['view_tables','manage_tables'],
+    'Printer':['manage_printers'],
+    'Settings':['manage_settings'],
+    'Inventory':['view_inventory','manage_inventory'],
+    'Membership':['view_membership','manage_membership']
+  }
+};
+
+function daysLeft(d) { return Math.floor((new Date(d) - new Date()) / 86400000); }
+
+function toast(msg, type) {
+  var el = document.createElement('div');
+  el.className = 'toast ' + (type || 'inf');
+  el.textContent = msg;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(function() { el.remove(); }, 3000);
+}
+
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function fmtPerm(p) {
+  return p.split('_').map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join(' ');
+}
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+  var pg = document.getElementById('page-' + id);
+  if (pg) pg.classList.add('active');
+  document.querySelectorAll('.ni').forEach(function(n) { n.classList.toggle('active', n.dataset.pg === id); });
+  var titles = {dashboard:'Dashboard',brands:'Brands',stores:'Stores / Branches',expiry:'Expiry Manager',roles:'Roles & Permissions',users:'Users',invoices:'Invoice Templates',settings:'Settings'};
+  document.getElementById('tb-t').textContent = titles[id] || id;
+  document.getElementById('tb-bc').textContent = 'Navar SaaS / ' + (titles[id] || id);
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sb-ov').classList.remove('open');
+  var fns = {dashboard:renderDashboard, brands:renderBrands, stores:renderStores, expiry:renderExpiry, roles:renderRoles, users:renderUsers, invoices:renderInvoices};
+  if (fns[id]) fns[id]();
+}
+
+function doLogin() {
+  var v = document.getElementById('l-email').value.trim();
+  var p = document.getElementById('l-pass').value;
+  if (!v || !p) { toast('Please enter credentials', 'err'); return; }
+
+  var btn = document.getElementById('btn-login');
+  btn.textContent = 'Signing in...';
+  btn.disabled = true;
+
+  // Try Supabase auth first, fall back to demo credentials
+  authenticateAdmin(v, p).then(function(ok) {
+    btn.textContent = 'Sign In →';
+    btn.disabled = false;
+    if (ok) {
+      S.user = {name: 'Super Admin', role: 'Owner'};
+      document.getElementById('sb-nm').textContent = 'Super Admin';
+      document.getElementById('sb-rl').textContent = 'Owner';
+      document.getElementById('sb-av').textContent = 'SA';
+      document.getElementById('login-screen').classList.remove('active');
+      document.getElementById('app-screen').classList.add('active');
+      document.getElementById('dash-date').textContent = new Date().toLocaleDateString('en-GB', {weekday:'long',year:'numeric',month:'long',day:'numeric'});
+      loadAllData().then(function() { showPage('dashboard'); });
+    } else {
+      toast('Invalid credentials', 'err');
+    }
+  });
+}
+
+async function authenticateAdmin(username, password) {
+  // Check Supabase admin_users table first
+  if (sb) {
+    try {
+      var res = await sb.from('navar_admins').select('*').eq('username', username).single();
+      if (res.data && res.data.password === password) return true;
+    } catch(e) {}
+  }
+  // Demo fallback
+  return (username === 'admin' || username === 'admin@navar.co') && password === 'admin123';
+}
+
+function doLogout() {
+  document.getElementById('app-screen').classList.remove('active');
+  document.getElementById('login-screen').classList.add('active');
+  S.user = null;
+}
+
+// DASHBOARD
+function renderDashboard() {
+  var active = S.stores.filter(function(s) { return s.status === 'active'; }).length;
+  var exp = S.stores.filter(function(s) { return daysLeft(s.expiry) <= 30 && daysLeft(s.expiry) >= 0; }).length;
+  document.getElementById('ds-brands').textContent = S.brands.length;
+  document.getElementById('ds-stores').textContent = active;
+  document.getElementById('ds-users').textContent = S.users.length;
+  document.getElementById('ds-expiry').textContent = exp;
+  document.getElementById('brand-badge').textContent = S.brands.length;
+
+  document.getElementById('d-stores-tb').innerHTML = S.stores.slice(0,5).map(function(s) {
+    var b = S.brands.find(function(x) { return x.id === s.brand; });
+    return '<tr><td><strong>' + s.name + '</strong></td><td>' + (b ? b.name : '-') + '</td><td><span class="badge ' + (s.status === 'active' ? 'bg' : 'br') + '">' + s.status + '</span></td></tr>';
+  }).join('');
+
+  var alerts = S.stores.filter(function(s) { return daysLeft(s.expiry) <= 30; }).slice(0, 4);
+  document.getElementById('d-expiry').innerHTML = alerts.length ? alerts.map(function(s) {
+    var d = daysLeft(s.expiry);
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--bdr);">' +
+      '<div><div style="font-size:.85rem;font-weight:700;">' + s.name + '</div><div style="font-size:.72rem;color:var(--txt2);">' + s.expiry + '</div></div>' +
+      '<span class="badge ' + (d < 0 ? 'br' : d <= 7 ? 'br' : 'bo') + '">' + (d < 0 ? 'Expired' : d + ' days') + '</span></div>';
+  }).join('') : '<div class="empty" style="padding:20px;"><div>No expiry alerts</div></div>';
+
+  document.getElementById('d-users-tb').innerHTML = S.users.slice(0,5).map(function(u) {
+    var r = S.roles.find(function(x) { return x.id === u.role; });
+    var st = S.stores.find(function(x) { return x.id === u.store; });
+    return '<tr><td><strong>' + u.name + '</strong></td><td><span class="badge bb">' + (r ? r.name : '-') + '</span></td><td>' + (st ? st.name : '-') + '</td></tr>';
+  }).join('');
+
+  document.getElementById('d-roles').innerHTML = S.roles.map(function(r) {
+    var uc = S.users.filter(function(u) { return u.role === r.id; }).length;
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bdr);">' +
+      '<div style="flex:1;"><div style="font-size:.85rem;font-weight:700;">' + r.name + '</div><div style="font-size:.72rem;color:var(--txt2);">' + r.desc + '</div></div>' +
+      '<span class="badge bb">' + uc + ' users</span></div>';
+  }).join('');
+}
+
+// BRANDS
+function renderBrands() {
+  var html = S.brands.map(function(b) {
+    var sc = S.stores.filter(function(s) { return s.brand === b.id; }).length;
+    var uc = S.users.filter(function(u) {
+      var st = S.stores.find(function(s) { return s.id === u.store; });
+      return st && st.brand === b.id;
+    }).length;
+    return '<div class="brand-card">' +
+      '<div class="bc-hdr ' + b.color + '">' +
+        '<div class="bc-logo">' + b.icon + '</div>' +
+        '<div class="bc-nm">' + b.name + '</div>' +
+        '<div class="bc-cd">' + b.code + '</div>' +
+      '</div>' +
+      '<div class="bc-body">' +
+        '<div class="bc-stats">' +
+          '<div class="bc-stat"><div class="bc-sv">' + sc + '</div><div class="bc-sl">Stores</div></div>' +
+          '<div class="bc-stat"><div class="bc-sv">' + uc + '</div><div class="bc-sl">Users</div></div>' +
+        '</div>' +
+        '<div style="font-size:.78rem;margin-bottom:12px;">' + b.desc + '</div>' +
+        '<div class="bc-acts">' +
+          '<button class="btn btn-sm btn-o" style="flex:1;" data-action="brand-stores" data-id="' + b.id + '">Stores</button>' +
+          '<button class="btn btn-sm btn-o" data-action="edit-brand" data-id="' + b.id + '">Edit</button>' +
+          '<button class="btn btn-sm btn-d" data-action="del-brand" data-id="' + b.id + '">Del</button>' +
+        '</div>' +
+      '</div></div>';
+  }).join('');
+  html += '<div class="brand-card" style="border:2px dashed var(--bdr);min-height:200px;display:flex;align-items:center;justify-content:center;cursor:pointer;" id="add-brand-card">' +
+    '<div style="text-align:center;color:var(--txt2);"><div style="font-size:2rem;">+</div><div style="font-size:.9rem;font-weight:700;">Add New Brand</div></div></div>';
+  document.getElementById('brand-grid').innerHTML = html;
+
+  document.querySelectorAll('[data-action="brand-stores"]').forEach(function(el) {
+    el.addEventListener('click', function() { showPage('stores'); });
+  });
+  document.querySelectorAll('[data-action="edit-brand"]').forEach(function(el) {
+    el.addEventListener('click', function() { editBrand(this.dataset.id); });
+  });
+  document.querySelectorAll('[data-action="del-brand"]').forEach(function(el) {
+    el.addEventListener('click', function() { deleteBrand(this.dataset.id); });
+  });
+  var addCard = document.getElementById('add-brand-card');
+  if (addCard) addCard.addEventListener('click', openNewBrand);
+}
+
+function openNewBrand() {
+  document.getElementById('b-eid').value = '';
+  document.getElementById('m-brand-t').textContent = 'Create New Brand';
+  ['b-name','b-code','b-desc','b-email'].forEach(function(id) { document.getElementById(id).value = ''; });
+  document.getElementById('b-icon').value = '';
+  document.getElementById('b-color').value = 'blue';
+  openModal('m-brand');
+}
+
+function editBrand(id) {
+  var b = S.brands.find(function(x) { return x.id === id; });
+  if (!b) return;
+  document.getElementById('b-eid').value = id;
+  document.getElementById('m-brand-t').textContent = 'Edit Brand';
+  document.getElementById('b-name').value = b.name;
+  document.getElementById('b-code').value = b.code;
+  document.getElementById('b-desc').value = b.desc || '';
+  document.getElementById('b-email').value = b.email || '';
+  document.getElementById('b-icon').value = b.icon || '';
+  document.getElementById('b-color').value = b.color || 'blue';
+  openModal('m-brand');
+}
+
+async function saveBrand() {
+  var name = document.getElementById('b-name').value.trim();
+  var code = document.getElementById('b-code').value.trim();
+  if (!name || !code) { toast('Name and code required', 'err'); return; }
+  var eid = document.getElementById('b-eid').value;
+  var data = {
+    name: name, code: code,
+    description: document.getElementById('b-desc').value,
+    email: document.getElementById('b-email').value,
+    icon: document.getElementById('b-icon').value || '&#127970;',
+    color: document.getElementById('b-color').value
+  };
+  var localData = {name:data.name, code:data.code, desc:data.description, email:data.email, icon:data.icon, color:data.color};
+  if (eid) {
+    var i = S.brands.findIndex(function(b) { return b.id === eid; });
+    Object.assign(S.brands[i], localData);
+    await dbUpdate('navar_brands', eid, data);
+    toast('Brand updated', 'ok');
+  } else {
+    var newId = 'b' + Date.now();
+    data.id = newId;
+    localData.id = newId;
+    S.brands.push(localData);
+    await dbInsert('navar_brands', data);
+    toast('Brand created', 'ok');
+  }
+  closeModal('m-brand');
+  renderBrands();
+  document.getElementById('brand-badge').textContent = S.brands.length;
+}
+
+async function deleteBrand(id) {
+  if (!confirm('Delete brand and all its stores?')) return;
+  S.brands = S.brands.filter(function(b) { return b.id !== id; });
+  S.stores = S.stores.filter(function(s) { return s.brand !== id; });
+  await dbDelete('navar_brands', id);
+  toast('Brand deleted', 'inf');
+  renderBrands();
+}
+
+// STORES
+function renderStores() {
+  var bf = document.getElementById('store-bf');
+  var cv = bf.value;
+  bf.innerHTML = '<option value="">All Brands</option>' + S.brands.map(function(b) {
+    return '<option value="' + b.id + '"' + (cv === b.id ? ' selected' : '') + '>' + b.name + '</option>';
+  }).join('');
+
+  var search = document.getElementById('store-srch').value.toLowerCase();
+  var bF = document.getElementById('store-bf').value;
+  var sF = document.getElementById('store-sf').value;
+
+  var list = S.stores.filter(function(s) {
+    if (search && s.name.toLowerCase().indexOf(search) < 0 && s.code.toLowerCase().indexOf(search) < 0) return false;
+    if (bF && s.brand !== bF) return false;
+    if (sF === 'active' && (s.status !== 'active' || daysLeft(s.expiry) < 0)) return false;
+    if (sF === 'expired' && daysLeft(s.expiry) >= 0 && s.status !== 'suspended') return false;
+    return true;
+  });
+
+  if (!list.length) {
+    document.getElementById('stores-list').innerHTML = '<div class="empty"><div class="empty-ic">&#127978;</div><div class="empty-t">No stores found</div></div>';
+    return;
+  }
+
+  var html = list.map(function(s) {
+    var b = S.brands.find(function(x) { return x.id === s.brand; });
+    var d = daysLeft(s.expiry);
+    var ec = d < 0 ? 'dead' : d <= 30 ? 'warn' : 'ok';
+    var et = d < 0 ? 'Expired ' + Math.abs(d) + 'd ago' : d <= 30 ? 'Expires in ' + d + ' days' : d + ' days left';
+    var uc = S.users.filter(function(u) { return u.store === s.id; }).length;
+    var pct = Math.max(0, Math.min(100, d / 365 * 100));
+    return '<div class="store-card">' +
+      '<div class="si">' + (b ? b.icon : '&#127978;') + '</div>' +
+      '<div class="s-info">' +
+        '<div class="s-nm">' + s.name + '</div>' +
+        '<div class="s-mt">' + s.code + ' &middot; ' + s.type + ' &middot; ' + (b ? b.name : '-') + ' &middot; ' + uc + ' users</div>' +
+        '<div class="s-ex ' + ec + '">' + et + '</div>' +
+        '<div class="exbar"><div class="exfill ' + ec + '" style="width:' + pct + '%"></div></div>' +
+      '</div>' +
+      '<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">' +
+        '<div class="s-acts">' +
+          '<button class="btn btn-sm btn-o" data-action="edit-store" data-id="' + s.id + '">Edit</button>' +
+          '<button class="btn btn-sm btn-s" data-action="renew-store" data-id="' + s.id + '">Renew</button>' +
+          '<button class="btn btn-sm btn-d" data-action="del-store" data-id="' + s.id + '">Del</button>' +
+        '</div>' +
+        '<div style="display:flex;gap:6px;">' +
+          '<button class="btn btn-sm" style="flex:1;background:#1a237e;color:#fff;font-size:.75rem;padding:6px 10px;" data-action="launch-pos" data-id="' + s.id + '">&#128179; Launch POS</button>' +
+          '<button class="btn btn-sm" style="flex:1;background:#1b5e20;color:#fff;font-size:.75rem;padding:6px 10px;" data-action="launch-fin" data-id="' + s.id + '">&#128200; Finance</button>' +
+        '</div>' +
+      '</div></div>';
+  }).join('');
+
+  document.getElementById('stores-list').innerHTML = html;
+  document.querySelectorAll('[data-action="edit-store"]').forEach(function(el) {
+    el.addEventListener('click', function() { editStore(this.dataset.id); });
+  });
+  document.querySelectorAll('[data-action="renew-store"]').forEach(function(el) {
+    el.addEventListener('click', function() { openRenew(this.dataset.id); });
+  });
+  document.querySelectorAll('[data-action="del-store"]').forEach(function(el) {
+    el.addEventListener('click', function() { deleteStore(this.dataset.id); });
+  });
+  document.querySelectorAll('[data-action="launch-pos"]').forEach(function(el) {
+    el.addEventListener('click', function() { launchApp('pos', this.dataset.id); });
+  });
+  document.querySelectorAll('[data-action="launch-fin"]').forEach(function(el) {
+    el.addEventListener('click', function() { launchApp('finance', this.dataset.id); });
+  });
+}
+
+// ── LAUNCH POS / FINANCE ──────────────────────────────────────────
+function launchApp(type, storeId) {
+  var s = S.stores.find(function(x) { return x.id === storeId; });
+  if (!s) { toast('Store not found', 'err'); return; }
+
+  // Check expiry
+  if (daysLeft(s.expiry) < 0) {
+    toast('Store license has expired. Please renew first.', 'err');
+    return;
+  }
+
+  var b = S.brands.find(function(x) { return x.id === s.brand; });
+
+  // Build launch payload
+  // Build store users list filtered to this store
+  var storeUsers = S.users.filter(function(u) { return u.store === s.id; });
+
+  var payload = {
+    storeId:   s.id,
+    storeName: s.name,
+    brandName: b ? b.name : '',
+    adminUser: s.user || 'admin',
+    adminPass: s.pass || 'admin123',
+    ts:        Date.now()
+  };
+
+  // Write persistent store context (survives page reload)
+  localStorage.setItem('navar_store_id',    s.id);
+  localStorage.setItem('navar_store_name',  s.name);
+  localStorage.setItem('navar_brand_name',  b ? b.name : '');
+  localStorage.setItem('navar_admin_user',  s.user || 'admin');
+  localStorage.setItem('navar_admin_pass',  s.pass || 'admin123');
+  localStorage.setItem('navar_store_users', JSON.stringify(storeUsers));
+  localStorage.setItem('navar_features',    JSON.stringify(s.features || {}));
+
+  if (type === 'pos') {
+    localStorage.setItem('navar_launch', JSON.stringify(payload));
+    // Open pos.html in new tab — same folder
+    var w = window.open('navar-pos.html', '_blank');
+    if (!w) {
+      toast('Pop-up blocked! Please allow pop-ups for this site.', 'err');
+      localStorage.removeItem('navar_launch');
+    } else {
+      toast('Launching POS for ' + s.name + ' ...', 'ok');
+    }
+  } else {
+    localStorage.setItem('navar_launch_fin', JSON.stringify(payload));
+    var w = window.open('navar-finance.html', '_blank');
+    if (!w) {
+      toast('Pop-up blocked! Please allow pop-ups for this site.', 'err');
+      localStorage.removeItem('navar_launch_fin');
+    } else {
+      toast('Launching Finance for ' + s.name + ' ...', 'ok');
+    }
+  }
+}
+// ─────────────────────────────────────────────────────────────────
+
+function openNewStore() {
+  document.getElementById('s-eid').value = '';
+  document.getElementById('m-store-t').textContent = 'Create New Store';
+  document.getElementById('s-brand').innerHTML = S.brands.map(function(b) { return '<option value="' + b.id + '">' + b.name + '</option>'; }).join('');
+  ['s-name','s-code','s-addr','s-phone','s-email','s-user','s-pass'].forEach(function(id) { document.getElementById(id).value = ''; });
+  var t = new Date().toISOString().split('T')[0];
+  var e = new Date(); e.setMonth(e.getMonth() + 3);
+  document.getElementById('s-start').value = t;
+  document.getElementById('s-expiry').value = e.toISOString().split('T')[0];
+  var ftElstock_count = document.getElementById('ft-stock_count'); if(ftElstock_count) ftElstock_count.checked = true;
+  var ftEltruck_load = document.getElementById('ft-truck_load'); if(ftEltruck_load) ftEltruck_load.checked = true;
+  var ftElexpenses = document.getElementById('ft-expenses'); if(ftElexpenses) ftElexpenses.checked = true;
+  var ftEltargets = document.getElementById('ft-targets'); if(ftEltargets) ftEltargets.checked = true;
+  var ftElhandover = document.getElementById('ft-handover'); if(ftElhandover) ftElhandover.checked = true;
+  var ftEladv_orders = document.getElementById('ft-adv_orders'); if(ftEladv_orders) ftEladv_orders.checked = true;
+  var ftElcollection = document.getElementById('ft-collection'); if(ftElcollection) ftElcollection.checked = true;
+  var ftEldiscount = document.getElementById('ft-discount'); if(ftEldiscount) ftEldiscount.checked = true;
+  var ftElpurchases = document.getElementById('ft-purchases'); if(ftElpurchases) ftElpurchases.checked = true;
+  var ftElassets = document.getElementById('ft-assets'); if(ftElassets) ftElassets.checked = true;
+  var ftElliabilities = document.getElementById('ft-liabilities'); if(ftElliabilities) ftElliabilities.checked = true;
+  var ftElbank = document.getElementById('ft-bank'); if(ftElbank) ftElbank.checked = true;
+  var ftElsalaries = document.getElementById('ft-salaries'); if(ftElsalaries) ftElsalaries.checked = true;
+  openModal('m-store');
+}
+
+function editStore(id) {
+  var s = S.stores.find(function(x) { return x.id === id; });
+  if (!s) return;
+  document.getElementById('s-eid').value = id;
+  document.getElementById('m-store-t').textContent = 'Edit Store';
+  document.getElementById('s-brand').innerHTML = S.brands.map(function(b) { return '<option value="' + b.id + '"' + (b.id === s.brand ? ' selected' : '') + '>' + b.name + '</option>'; }).join('');
+  document.getElementById('s-name').value = s.name;
+  document.getElementById('s-code').value = s.code;
+  document.getElementById('s-addr').value = s.addr || '';
+  document.getElementById('s-phone').value = s.phone || '';
+  document.getElementById('s-email').value = s.email || '';
+  document.getElementById('s-start').value = s.start;
+  document.getElementById('s-expiry').value = s.expiry;
+  document.getElementById('s-user').value = s.user || '';
+  document.getElementById('s-pass').value = '';
+  var feats = s.features || {};
+  var ftElstock_count = document.getElementById('ft-stock_count'); if(ftElstock_count) ftElstock_count.checked = feats.stock_count !== false;
+  var ftEltruck_load = document.getElementById('ft-truck_load'); if(ftEltruck_load) ftEltruck_load.checked = feats.truck_load !== false;
+  var ftElexpenses = document.getElementById('ft-expenses'); if(ftElexpenses) ftElexpenses.checked = feats.expenses !== false;
+  var ftEltargets = document.getElementById('ft-targets'); if(ftEltargets) ftEltargets.checked = feats.targets !== false;
+  var ftElhandover = document.getElementById('ft-handover'); if(ftElhandover) ftElhandover.checked = feats.handover !== false;
+  var ftEladv_orders = document.getElementById('ft-adv_orders'); if(ftEladv_orders) ftEladv_orders.checked = feats.adv_orders !== false;
+  var ftElcollection = document.getElementById('ft-collection'); if(ftElcollection) ftElcollection.checked = feats.collection !== false;
+  var ftEldiscount = document.getElementById('ft-discount'); if(ftEldiscount) ftEldiscount.checked = feats.discount !== false;
+  var ftElpurchases = document.getElementById('ft-purchases'); if(ftElpurchases) ftElpurchases.checked = feats.purchases !== false;
+  var ftElassets = document.getElementById('ft-assets'); if(ftElassets) ftElassets.checked = feats.assets !== false;
+  var ftElliabilities = document.getElementById('ft-liabilities'); if(ftElliabilities) ftElliabilities.checked = feats.liabilities !== false;
+  var ftElbank = document.getElementById('ft-bank'); if(ftElbank) ftElbank.checked = feats.bank !== false;
+  var ftElsalaries = document.getElementById('ft-salaries'); if(ftElsalaries) ftElsalaries.checked = feats.salaries !== false;
+  openModal('m-store');
+}
+
+async function saveStore() {
+  var name = document.getElementById('s-name').value.trim();
+  var brand = document.getElementById('s-brand').value;
+  var start = document.getElementById('s-start').value;
+  var expiry = document.getElementById('s-expiry').value;
+  var user = document.getElementById('s-user').value.trim();
+  if (!name || !brand || !start || !expiry || !user) { toast('Fill required fields', 'err'); return; }
+  var eid = document.getElementById('s-eid').value;
+  var data = {name:name, brand:brand, code:document.getElementById('s-code').value, type:document.getElementById('s-type').value, addr:document.getElementById('s-addr').value, phone:document.getElementById('s-phone').value, email:document.getElementById('s-email').value, start:start, expiry:expiry, user:user, status:daysLeft(expiry) < 0 ? 'expired' : 'active'};
+  var features = {};
+  var ftElstock_count = document.getElementById('ft-stock_count'); if(ftElstock_count) features.stock_count = ftElstock_count.checked;
+  var ftEltruck_load = document.getElementById('ft-truck_load'); if(ftEltruck_load) features.truck_load = ftEltruck_load.checked;
+  var ftElexpenses = document.getElementById('ft-expenses'); if(ftElexpenses) features.expenses = ftElexpenses.checked;
+  var ftEltargets = document.getElementById('ft-targets'); if(ftEltargets) features.targets = ftEltargets.checked;
+  var ftElhandover = document.getElementById('ft-handover'); if(ftElhandover) features.handover = ftElhandover.checked;
+  var ftEladv_orders = document.getElementById('ft-adv_orders'); if(ftEladv_orders) features.adv_orders = ftEladv_orders.checked;
+  var ftElcollection = document.getElementById('ft-collection'); if(ftElcollection) features.collection = ftElcollection.checked;
+  var ftEldiscount = document.getElementById('ft-discount'); if(ftEldiscount) features.discount = ftEldiscount.checked;
+  var ftElpurchases = document.getElementById('ft-purchases'); if(ftElpurchases) features.purchases = ftElpurchases.checked;
+  var ftElassets = document.getElementById('ft-assets'); if(ftElassets) features.assets = ftElassets.checked;
+  var ftElliabilities = document.getElementById('ft-liabilities'); if(ftElliabilities) features.liabilities = ftElliabilities.checked;
+  var ftElbank = document.getElementById('ft-bank'); if(ftElbank) features.bank = ftElbank.checked;
+  var ftElsalaries = document.getElementById('ft-salaries'); if(ftElsalaries) features.salaries = ftElsalaries.checked;
+  data.features = features;
+  var np = document.getElementById('s-pass').value;
+  if (np) data.pass = np;
+  if (eid) {
+    var i = S.stores.findIndex(function(s) { return s.id === eid; });
+    Object.assign(S.stores[i], data);
+    toast('Store updated', 'ok');
+  } else {
+    data.id = 's' + Date.now();
+    S.stores.push(data);
+    toast('Store created', 'ok');
+  }
+  // Save to Supabase
+  var sbData = {
+    id: eid || data.id,
+    brand_id: data.brand, name: data.name, code: data.code,
+    type: data.type, address: data.addr, phone: data.phone, email: data.email,
+    start_date: data.start, expiry_date: data.expiry,
+    admin_user: data.user, status: data.status,
+    features: JSON.stringify(features || {})
+  };
+  if (data.pass) sbData.admin_pass = data.pass;
+  if (eid) {
+    await dbUpdate('navar_stores', eid, sbData);
+  } else {
+    await dbInsert('navar_stores', sbData);
+  }
+  closeModal('m-store');
+  renderStores();
+}
+
+async function deleteStore(id) {
+  if (!confirm('Delete this store?')) return;
+  S.stores = S.stores.filter(function(s) { return s.id !== id; });
+  S.users.forEach(function(u) { if (u.store === id) u.store = ''; });
+  await dbDelete('navar_stores', id);
+  toast('Store deleted', 'inf');
+  renderStores();
+}
+
+// EXPIRY
+function renderExpiry() {
+  var a = 0, w = 0, d = 0;
+  var rows = S.stores.map(function(s) {
+    var dl = daysLeft(s.expiry);
+    var b = S.brands.find(function(x) { return x.id === s.brand; });
+    var badge, clr;
+    if (dl < 0) { d++; badge = '<span class="badge br">Expired</span>'; clr = 'var(--red)'; }
+    else if (dl <= 30) { w++; badge = '<span class="badge bo">Expiring Soon</span>'; clr = 'var(--a)'; }
+    else { a++; badge = '<span class="badge bg">Active</span>'; clr = 'var(--green)'; }
+    return '<tr style="' + (dl < 0 ? 'background:#fff5f5;' : '') + '">' +
+      '<td><strong>' + s.name + '</strong><br><span style="font-size:.72rem;color:var(--txt2);">' + s.code + '</span></td>' +
+      '<td>' + (b ? b.name : '-') + '</td><td>' + s.start + '</td><td>' + s.expiry + '</td>' +
+      '<td><span style="font-weight:700;color:' + clr + '">' + (dl < 0 ? dl + ' (expired)' : dl + ' days') + '</span></td>' +
+      '<td>' + badge + '</td>' +
+      '<td><button class="btn btn-sm btn-s" data-action="renew-exp" data-id="' + s.id + '">Renew</button></td></tr>';
+  }).join('');
+  document.getElementById('exp-a').textContent = a;
+  document.getElementById('exp-w').textContent = w;
+  document.getElementById('exp-d').textContent = d;
+  document.getElementById('expiry-tb').innerHTML = rows;
+  document.querySelectorAll('[data-action="renew-exp"]').forEach(function(el) {
+    el.addEventListener('click', function() { openRenew(this.dataset.id); });
+  });
+}
+
+function openRenew(id) {
+  var s = S.stores.find(function(x) { return x.id === id; });
+  if (!s) return;
+  document.getElementById('renew-sid').value = id;
+  document.getElementById('renew-nm').textContent = s.name;
+  var e = new Date(); e.setFullYear(e.getFullYear() + 1);
+  document.getElementById('renew-dt').value = e.toISOString().split('T')[0];
+  document.getElementById('renew-nt').value = '';
+  openModal('m-renew');
+}
+
+function doRenew() {
+  var id = document.getElementById('renew-sid').value;
+  var date = document.getElementById('renew-dt').value;
+  if (!date) { toast('Select a date', 'err'); return; }
+  var s = S.stores.find(function(x) { return x.id === id; });
+  if (s) { s.expiry = date; s.status = 'active'; }
+  closeModal('m-renew');
+  toast('License renewed successfully', 'ok');
+  if (document.getElementById('page-expiry').classList.contains('active')) renderExpiry();
+  if (document.getElementById('page-stores').classList.contains('active')) renderStores();
+}
+
+// ROLES
+function renderRoles() {
+  document.getElementById('roles-list').innerHTML = S.roles.map(function(r) {
+    var pc = r.perms.indexOf('all') >= 0 ? 'All' : r.perms.length;
+    return '<div class="ri' + (r.id === S.activeRole ? ' sel' : '') + '" data-action="sel-role" data-id="' + r.id + '">' +
+      '<div class="ri-ic">' + r.icon + '</div>' +
+      '<div style="flex:1;"><div class="ri-nm">' + r.name + '</div><div class="ri-ds">' + r.desc + '</div></div>' +
+      '<span class="ri-pc">' + pc + ' perms</span></div>';
+  }).join('');
+  document.querySelectorAll('[data-action="sel-role"]').forEach(function(el) {
+    el.addEventListener('click', function() { selectRole(this.dataset.id); });
+  });
+  if (S.activeRole) selectRole(S.activeRole);
+}
+
+function selectRole(id) {
+  S.activeRole = id;
+  var r = S.roles.find(function(x) { return x.id === id; });
+  if (!r) return;
+  document.querySelectorAll('.ri').forEach(function(el) { el.classList.toggle('sel', el.dataset.id === id); });
+  var uc = S.users.filter(function(u) { return u.role === id; }).length;
+  var permsHtml;
+  if (r.perms.indexOf('all') >= 0) {
+    permsHtml = '<div class="badge bg" style="font-size:.85rem;padding:8px 16px;">Full Access - All Permissions Granted</div>';
+  } else {
+    permsHtml = Object.keys(S.perms).map(function(sec) {
+      return '<div class="perm-sec"><div class="perm-sec-t">' + sec + '</div><div class="perm-grid">' +
+        S.perms[sec].map(function(p) {
+          var chk = r.perms.indexOf(p) >= 0 ? 'on' : '';
+          return '<div class="perm-it"><div class="pcb ' + chk + '"></div><span class="plb">' + fmtPerm(p) + '</span></div>';
+        }).join('') + '</div></div>';
+    }).join('');
+  }
+  document.getElementById('role-detail').innerHTML =
+    '<div class="card"><div class="ch">' +
+      '<div style="display:flex;align-items:center;gap:10px;">' +
+        '<span style="font-size:1.5rem;">' + r.icon + '</span>' +
+        '<div><div class="ct">' + r.name + '</div><div style="font-size:.78rem;color:var(--txt2);">' + r.desc + ' &middot; ' + uc + ' user(s)</div></div>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;">' +
+        '<button class="btn btn-sm btn-o" data-action="edit-role" data-id="' + id + '">Edit</button>' +
+        (id !== 'r1' ? '<button class="btn btn-sm btn-d" data-action="del-role" data-id="' + id + '">Delete</button>' : '') +
+      '</div>' +
+    '</div><div class="cb">' + permsHtml + '</div></div>';
+
+  var editBtn = document.querySelector('[data-action="edit-role"]');
+  if (editBtn) editBtn.addEventListener('click', function() { editRole(this.dataset.id); });
+  var delBtn = document.querySelector('[data-action="del-role"]');
+  if (delBtn) delBtn.addEventListener('click', function() { deleteRole(this.dataset.id); });
+}
+
+function openNewRole() {
+  document.getElementById('r-eid').value = '';
+  document.getElementById('m-role-t').textContent = 'Create Role';
+  document.getElementById('r-name').value = '';
+  document.getElementById('r-desc').value = '';
+  renderRolePerms([]);
+  openModal('m-role');
+}
+
+function editRole(id) {
+  var r = S.roles.find(function(x) { return x.id === id; });
+  if (!r) return;
+  document.getElementById('r-eid').value = id;
+  document.getElementById('m-role-t').textContent = 'Edit Role';
+  document.getElementById('r-name').value = r.name;
+  document.getElementById('r-desc').value = r.desc;
+  renderRolePerms(r.perms);
+  openModal('m-role');
+}
+
+function renderRolePerms(sel) {
+  document.getElementById('r-perms').innerHTML = Object.keys(S.perms).map(function(sec) {
+    var allOn = S.perms[sec].every(function(p) { return sel.indexOf(p) >= 0 || sel.indexOf('all') >= 0; });
+    return '<div class="perm-sec">' +
+      '<div class="perm-sec-t">' +
+        '<label class="sw-w" style="margin-right:8px;">' +
+          '<input type="checkbox" class="sec-tog" data-sec="' + sec + '"' + (allOn ? ' checked' : '') + '>' +
+          '<span class="sw-sl"></span></label>' + sec +
+      '</div>' +
+      '<div class="perm-grid">' +
+        S.perms[sec].map(function(p) {
+          var on = sel.indexOf(p) >= 0 || sel.indexOf('all') >= 0 ? 'on' : '';
+          return '<div class="perm-it" data-perm="' + p + '">' +
+            '<div class="pcb ' + on + '" data-perm="' + p + '"></div>' +
+            '<span class="plb">' + fmtPerm(p) + '</span></div>';
+        }).join('') +
+      '</div></div>';
+  }).join('');
+
+  document.querySelectorAll('.perm-it').forEach(function(el) {
+    el.addEventListener('click', function() {
+      this.querySelector('.pcb').classList.toggle('on');
+    });
+  });
+  document.querySelectorAll('.sec-tog').forEach(function(tog) {
+    tog.addEventListener('change', function() {
+      var on = this.checked;
+      this.closest('.perm-sec').querySelectorAll('.pcb').forEach(function(cb) { cb.classList.toggle('on', on); });
+    });
+  });
+}
+
+async function saveRole() {
+  var name = document.getElementById('r-name').value.trim();
+  if (!name) { toast('Role name required', 'err'); return; }
+  var perms = Array.from(document.querySelectorAll('#r-perms .pcb.on')).map(function(el) { return el.dataset.perm; }).filter(Boolean);
+  var eid = document.getElementById('r-eid').value;
+  var storeFilter = document.getElementById('user-sf') ? document.getElementById('user-sf').value : '';
+  var data = {name:name, desc:document.getElementById('r-desc').value, icon:'&#128737;', perms:perms};
+  var sbData = {name:name, description:data.desc, icon:'&#128737;', permissions:JSON.stringify(perms), store_id: storeFilter || 'global'};
+  if (eid) {
+    var i = S.roles.findIndex(function(r) { return r.id === eid; });
+    Object.assign(S.roles[i], data);
+    await dbUpdate('navar_roles', eid, sbData);
+    toast('Role updated', 'ok');
+  } else {
+    var newId = 'r' + Date.now();
+    data.id = newId; sbData.id = newId;
+    S.roles.push(data);
+    await dbInsert('navar_roles', sbData);
+    toast('Role created', 'ok');
+  }
+  closeModal('m-role');
+  renderRoles();
+}
+
+async function deleteRole(id) {
+  if (S.users.some(function(u) { return u.role === id; })) { toast('Cannot delete: users assigned to this role', 'err'); return; }
+  if (!confirm('Delete this role?')) return;
+  S.roles = S.roles.filter(function(r) { return r.id !== id; });
+  await dbDelete('navar_roles', id);
+  toast('Role deleted', 'inf');
+  S.activeRole = null;
+  renderRoles();
+  document.getElementById('role-detail').innerHTML = '<div class="empty"><div class="empty-ic">&#128737;</div><div class="empty-t">Select a Role</div></div>';
+}
+
+// USERS
+function renderUsers() {
+  var sf = document.getElementById('user-sf');
+  var rf = document.getElementById('user-rf');
+  var cs = sf.value, cr = rf.value;
+  sf.innerHTML = '<option value="">All Stores</option>' + S.stores.map(function(s) { return '<option value="' + s.id + '"' + (cs === s.id ? ' selected' : '') + '>' + s.name + '</option>'; }).join('');
+  rf.innerHTML = '<option value="">All Roles</option>' + S.roles.map(function(r) { return '<option value="' + r.id + '"' + (cr === r.id ? ' selected' : '') + '>' + r.name + '</option>'; }).join('');
+  var search = document.getElementById('user-srch').value.toLowerCase();
+  var stF = sf.value, rlF = rf.value;
+  var list = S.users.filter(function(u) {
+    if (search && u.name.toLowerCase().indexOf(search) < 0 && u.uname.toLowerCase().indexOf(search) < 0) return false;
+    if (stF && u.store !== stF) return false;
+    if (rlF && u.role !== rlF) return false;
+    return true;
+  });
+  document.getElementById('users-tb').innerHTML = list.length ? list.map(function(u) {
+    var r = S.roles.find(function(x) { return x.id === u.role; });
+    var s = S.stores.find(function(x) { return x.id === u.store; });
+    var ini = u.name.split(' ').map(function(n) { return n[0]; }).join('').slice(0, 2).toUpperCase();
+    return '<tr>' +
+      '<td><div style="display:flex;align-items:center;gap:10px;"><div class="u-av">' + ini + '</div>' +
+        '<div><div style="font-weight:700;">' + u.name + '</div><div style="font-size:.72rem;color:var(--txt2);">@' + u.uname + '</div></div></div></td>' +
+      '<td>' + u.email + '</td>' +
+      '<td>' + (r ? '<span class="badge bb">' + r.name + '</span>' : '-') + '</td>' +
+      '<td>' + (s ? s.name : '-') + '</td>' +
+      '<td><span class="badge ' + (u.status === 'active' ? 'bg' : 'br') + '">' + u.status + '</span></td>' +
+      '<td><div style="display:flex;gap:6px;">' +
+        '<button class="btn btn-sm btn-o" data-action="edit-user" data-id="' + u.id + '">Edit</button>' +
+        '<button class="btn btn-sm btn-d" data-action="del-user" data-id="' + u.id + '">Del</button>' +
+      '</div></td></tr>';
+  }).join('') : '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--txt2);">No users found</td></tr>';
+
+  document.querySelectorAll('[data-action="edit-user"]').forEach(function(el) {
+    el.addEventListener('click', function() { editUser(this.dataset.id); });
+  });
+  document.querySelectorAll('[data-action="del-user"]').forEach(function(el) {
+    el.addEventListener('click', function() { deleteUser(this.dataset.id); });
+  });
+}
+
+function openNewUser() {
+  document.getElementById('u-eid').value = '';
+  document.getElementById('m-user-t').textContent = 'Add User';
+  ['u-name','u-uname','u-email','u-pass','u-pass2','u-phone'].forEach(function(id) { document.getElementById(id).value = ''; });
+  document.getElementById('u-store').innerHTML = S.stores.map(function(s) { return '<option value="' + s.id + '">' + s.name + '</option>'; }).join('');
+  document.getElementById('u-role').innerHTML = S.roles.map(function(r) { return '<option value="' + r.id + '">' + r.name + '</option>'; }).join('');
+  openModal('m-user');
+}
+
+function editUser(id) {
+  var u = S.users.find(function(x) { return x.id === id; });
+  if (!u) return;
+  document.getElementById('u-eid').value = id;
+  document.getElementById('m-user-t').textContent = 'Edit User';
+  document.getElementById('u-name').value = u.name;
+  document.getElementById('u-uname').value = u.uname;
+  document.getElementById('u-email').value = u.email;
+  document.getElementById('u-phone').value = u.phone || '';
+  document.getElementById('u-pass').value = '';
+  document.getElementById('u-pass2').value = '';
+  document.getElementById('u-store').innerHTML = S.stores.map(function(s) { return '<option value="' + s.id + '"' + (s.id === u.store ? ' selected' : '') + '>' + s.name + '</option>'; }).join('');
+  document.getElementById('u-role').innerHTML = S.roles.map(function(r) { return '<option value="' + r.id + '"' + (r.id === u.role ? ' selected' : '') + '>' + r.name + '</option>'; }).join('');
+  openModal('m-user');
+}
+
+async function saveUser() {
+  var name = document.getElementById('u-name').value.trim();
+  var uname = document.getElementById('u-uname').value.trim();
+  var store = document.getElementById('u-store').value;
+  var role = document.getElementById('u-role').value;
+  var pass = document.getElementById('u-pass').value;
+  var pass2 = document.getElementById('u-pass2').value;
+  var eid = document.getElementById('u-eid').value;
+  if (!name || !uname || !store || !role) { toast('Fill required fields', 'err'); return; }
+  if (!eid && !pass) { toast('Password required', 'err'); return; }
+  if (pass && pass !== pass2) { toast('Passwords do not match', 'err'); return; }
+  var data = {name:name, uname:uname, email:document.getElementById('u-email').value, store:store, role:role, phone:document.getElementById('u-phone').value, status:'active'};
+  if (pass) data.pass = pass;
+  var sbData = {name:name, username:uname, email:data.email, store_id:store, role_id:role, phone:data.phone, status:'active'};
+  if (pass) sbData.password = pass;
+  if (eid) {
+    var i = S.users.findIndex(function(u) { return u.id === eid; });
+    Object.assign(S.users[i], data);
+    await dbUpdate('navar_users', eid, sbData);
+    toast('User updated', 'ok');
+  } else {
+    var newId = 'u' + Date.now();
+    data.id = newId; sbData.id = newId;
+    S.users.push(data);
+    await dbInsert('navar_users', sbData);
+    toast('User created', 'ok');
+  }
+  closeModal('m-user');
+  renderUsers();
+}
+
+function deleteUser(id) {
+  if (!confirm('Delete this user?')) return;
+  S.users = S.users.filter(function(u) { return u.id !== id; });
+  toast('User deleted', 'inf');
+  renderUsers();
+}
+
+
+// ── INVOICE TEMPLATES ────────────────────────────────────────────
+function renderInvoices() {
+  var sf = document.getElementById('inv-store-f');
+  var cv = sf ? sf.value : '';
+  if (sf) {
+    sf.innerHTML = '<option value="">All Stores</option>' + S.stores.map(function(s) {
+      return '<option value="' + s.id + '"' + (cv === s.id ? ' selected' : '') + '>' + s.name + '</option>';
+    }).join('');
+  }
+  var stF = sf ? sf.value : '';
+  var list = stF ? S.invoices.filter(function(i) { return i.store === stF; }) : S.invoices;
+  var el = document.getElementById('invoice-list');
+  if (!el) return;
+  if (!list.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-ic">&#128196;</div><div class="empty-t">No templates yet</div><div>Create a custom invoice template for each store</div></div>';
+    return;
+  }
+  el.innerHTML = list.map(function(inv) {
+    var st = S.stores.find(function(s) { return s.id === inv.store; });
+    return '<div class="card" style="margin-bottom:12px;">' +
+      '<div class="ch">' +
+        '<div>' +
+          '<div class="ct">' + inv.name + '</div>' +
+          '<div style="font-size:.75rem;color:var(--txt2);margin-top:2px;">' + (st ? st.name : 'All Stores') + ' &middot; ' + inv.paper + ' &middot; ' + inv.style + '</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px;">' +
+          '<button class="btn btn-sm btn-o" data-action="edit-inv" data-id="' + inv.id + '">Edit</button>' +
+          '<button class="btn btn-sm btn-o" data-action="preview-inv" data-id="' + inv.id + '">Preview</button>' +
+          '<button class="btn btn-sm btn-d" data-action="del-inv" data-id="' + inv.id + '">Del</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="cb" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;font-size:.8rem;">' +
+        '<div><span style="color:var(--txt2);">Business:</span> ' + inv.biz + '</div>' +
+        '<div><span style="color:var(--txt2);">Phone:</span> ' + (inv.phone || '-') + '</div>' +
+        '<div><span style="color:var(--txt2);">VAT:</span> ' + (inv.tax || '-') + '</div>' +
+        '<div><span style="color:var(--txt2);">Show Tax:</span> ' + (inv.showTax ? 'Yes' : 'No') + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+  document.querySelectorAll('[data-action="edit-inv"]').forEach(function(el) {
+    el.addEventListener('click', function() { editInvoice(this.dataset.id); });
+  });
+  document.querySelectorAll('[data-action="del-inv"]').forEach(function(el) {
+    el.addEventListener('click', function() { deleteInvoice(this.dataset.id); });
+  });
+  document.querySelectorAll('[data-action="preview-inv"]').forEach(function(el) {
+    el.addEventListener('click', function() { previewInvoice(this.dataset.id); });
+  });
+}
+
+function openNewInvoice() {
+  document.getElementById('inv-eid').value = '';
+  document.getElementById('m-inv-t').textContent = 'New Invoice Template';
+  ['inv-name','inv-biz','inv-tag','inv-addr1','inv-addr2','inv-phone','inv-tax','inv-footer'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('inv-store').innerHTML = S.stores.map(function(s) { return '<option value="' + s.id + '">' + s.name + '</option>'; }).join('');
+  document.getElementById('inv-paper').value = '80mm';
+  document.getElementById('inv-style').value = 'simple';
+  document.getElementById('inv-show-tax').checked = true;
+  document.getElementById('inv-show-logo').checked = false;
+  updateInvPreview();
+  openModal('m-invoice');
+}
+
+function editInvoice(id) {
+  var inv = S.invoices.find(function(x) { return x.id === id; });
+  if (!inv) return;
+  document.getElementById('inv-eid').value = id;
+  document.getElementById('m-inv-t').textContent = 'Edit Invoice Template';
+  document.getElementById('inv-name').value = inv.name;
+  document.getElementById('inv-biz').value = inv.biz || '';
+  document.getElementById('inv-tag').value = inv.tag || '';
+  document.getElementById('inv-addr1').value = inv.addr1 || '';
+  document.getElementById('inv-addr2').value = inv.addr2 || '';
+  document.getElementById('inv-phone').value = inv.phone || '';
+  document.getElementById('inv-tax').value = inv.tax || '';
+  document.getElementById('inv-footer').value = inv.footer || '';
+  document.getElementById('inv-store').innerHTML = S.stores.map(function(s) {
+    return '<option value="' + s.id + '"' + (s.id === inv.store ? ' selected' : '') + '>' + s.name + '</option>';
+  }).join('');
+  document.getElementById('inv-paper').value = inv.paper || '80mm';
+  document.getElementById('inv-style').value = inv.style || 'simple';
+  document.getElementById('inv-show-tax').checked = inv.showTax !== false;
+  document.getElementById('inv-show-logo').checked = !!inv.showLogo;
+  updateInvPreview();
+  openModal('m-invoice');
+}
+
+function updateInvPreview() {
+  var biz = (document.getElementById('inv-biz') && document.getElementById('inv-biz').value) || 'Store Name';
+  var tag = (document.getElementById('inv-tag') && document.getElementById('inv-tag').value) || '';
+  var addr1 = (document.getElementById('inv-addr1') && document.getElementById('inv-addr1').value) || '';
+  var addr2 = (document.getElementById('inv-addr2') && document.getElementById('inv-addr2').value) || '';
+  var phone = (document.getElementById('inv-phone') && document.getElementById('inv-phone').value) || '';
+  var tax = (document.getElementById('inv-tax') && document.getElementById('inv-tax').value) || '';
+  var footer = (document.getElementById('inv-footer') && document.getElementById('inv-footer').value) || '';
+  var style = (document.getElementById('inv-style') && document.getElementById('inv-style').value) || 'simple';
+  var divider = '--------------------------------';
+  var lines = [
+    style === 'bold' ? '<strong>' + biz.toUpperCase() + '</strong>' : biz,
+    tag ? '<em>' + tag + '</em>' : '',
+    addr1 || '',
+    addr2 || '',
+    phone ? 'Tel: ' + phone : '',
+    tax ? 'VAT: ' + tax : '',
+    divider,
+    'Date: 08/04/2026      #INV-0001',
+    divider,
+    '1x Item Name         QAR 10.00',
+    '2x Another Item      QAR 20.00',
+    divider,
+    'Subtotal:            QAR 30.00',
+    'VAT (5%):             QAR 1.50',
+    '<strong>TOTAL:              QAR 31.50</strong>',
+    divider,
+    footer ? '<em>' + footer + '</em>' : '',
+  ].filter(Boolean);
+  var prev = document.getElementById('inv-preview');
+  if (prev) prev.innerHTML = lines.join('<br>');
+}
+
+async function saveInvoice() {
+  var name = document.getElementById('inv-name').value.trim();
+  var store = document.getElementById('inv-store').value;
+  if (!name || !store) { toast('Template name and store required', 'err'); return; }
+  var eid = document.getElementById('inv-eid').value;
+  var data = {
+    name: name,
+    store: store,
+    biz: document.getElementById('inv-biz').value,
+    tag: document.getElementById('inv-tag').value,
+    addr1: document.getElementById('inv-addr1').value,
+    addr2: document.getElementById('inv-addr2').value,
+    phone: document.getElementById('inv-phone').value,
+    tax: document.getElementById('inv-tax').value,
+    footer: document.getElementById('inv-footer').value,
+    paper: document.getElementById('inv-paper').value,
+    style: document.getElementById('inv-style').value,
+    showTax: document.getElementById('inv-show-tax').checked,
+    showLogo: document.getElementById('inv-show-logo').checked,
+  };
+  var sbData = {
+    id: eid || ('inv' + Date.now()),
+    store_id: store, name: name,
+    biz_name: data.biz, tagline: data.tag,
+    address1: data.addr1, address2: data.addr2,
+    phone: data.phone, tax_number: data.tax,
+    footer: data.footer, paper_size: data.paper,
+    style: data.style, show_tax: data.showTax ? 1 : 0, show_logo: data.showLogo ? 1 : 0
+  };
+  if (eid) {
+    var i = S.invoices.findIndex(function(x) { return x.id === eid; });
+    Object.assign(S.invoices[i], data);
+    await dbUpdate('navar_invoice_templates', eid, sbData);
+    toast('Template updated', 'ok');
+  } else {
+    data.id = sbData.id;
+    S.invoices.push(data);
+    await dbInsert('navar_invoice_templates', sbData);
+    toast('Template created', 'ok');
+  }
+  closeModal('m-invoice');
+  renderInvoices();
+}
+
+async function deleteInvoice(id) {
+  if (!confirm('Delete this template?')) return;
+  S.invoices = S.invoices.filter(function(x) { return x.id !== id; });
+  await dbDelete('navar_invoice_templates', id);
+  toast('Template deleted', 'inf');
+  renderInvoices();
+}
+
+function previewInvoice(id) {
+  var inv = S.invoices.find(function(x) { return x.id === id; });
+  if (!inv) return;
+  var w = window.open('', '_blank', 'width=400,height=600');
+  var divider = '--------------------------------';
+  var html = '<html><head><title>' + inv.name + ' Preview</title>' +
+    '<style>body{font-family:monospace;font-size:13px;padding:24px;max-width:320px;margin:0 auto;line-height:1.7;}</style></head><body>' +
+    '<div style="text-align:center;font-weight:bold;font-size:16px;">' + (inv.biz || 'Store Name') + '</div>' +
+    (inv.tag ? '<div style="text-align:center;font-size:12px;">' + inv.tag + '</div>' : '') +
+    (inv.addr1 ? '<div style="text-align:center;">' + inv.addr1 + '</div>' : '') +
+    (inv.addr2 ? '<div style="text-align:center;">' + inv.addr2 + '</div>' : '') +
+    (inv.phone ? '<div style="text-align:center;">Tel: ' + inv.phone + '</div>' : '') +
+    (inv.tax ? '<div style="text-align:center;">VAT: ' + inv.tax + '</div>' : '') +
+    '<pre>' + divider + '\nDate: 08/04/2026    #INV-0001\n' + divider + '\n1x Sample Item          QAR 10.00\n2x Another Product      QAR 20.00\n' + divider + '\nSubtotal:               QAR 30.00\nVAT (5%):                QAR 1.50\nTOTAL:                  QAR 31.50\n' + divider + '</pre>' +
+    (inv.footer ? '<div style="text-align:center;font-size:12px;">' + inv.footer + '</div>' : '') +
+    '</body></html>';
+  w.document.write(html);
+  w.document.close();
+}
+// ─────────────────────────────────────────────────────────────────
+
+// BOOT - everything via addEventListener, zero inline onclick
+document.addEventListener('DOMContentLoaded', function() {
+  // Add loading bar to DOM
+  var lb = document.createElement('div');
+  lb.id = 'saas-loading-bar';
+  lb.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#f5a623,#00c9a7,#f5a623);background-size:200%;animation:loadbar 1.2s linear infinite;z-index:99999;';
+  document.body.appendChild(lb);
+  var style = document.createElement('style');
+  style.textContent = '@keyframes loadbar{0%{background-position:0%}100%{background-position:200%}}';
+  document.head.appendChild(style);
+  // Init Supabase
+  initSupabase();
+  document.getElementById('dash-date').textContent = new Date().toLocaleDateString('en-GB', {weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+  document.getElementById('btn-login').addEventListener('click', doLogin);
+  document.getElementById('l-pass').addEventListener('keydown', function(e) { if (e.key === 'Enter') doLogin(); });
+  document.getElementById('btn-logout').addEventListener('click', doLogout);
+  document.getElementById('btn-sync').addEventListener('click', function() { loadAllData().then(function() { var pg = document.querySelector('.page.active'); if(pg) { var id = pg.id.replace('page-',''); var fns = {dashboard:renderDashboard,brands:renderBrands,stores:renderStores,expiry:renderExpiry,roles:renderRoles,users:renderUsers}; if(fns[id]) fns[id](); } toast('Data synced!', 'ok'); }); });
+  document.getElementById('btn-save-settings').addEventListener('click', function() { toast('Settings saved!', 'ok'); });
+  document.getElementById('btn-new-store-top').addEventListener('click', function() { showPage('stores'); setTimeout(openNewStore, 60); });
+
+  document.querySelectorAll('.ni[data-pg]').forEach(function(el) {
+    el.addEventListener('click', function() { showPage(this.dataset.pg); });
+  });
+  document.getElementById('mob-btn').addEventListener('click', function() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sb-ov').classList.toggle('open');
+  });
+  document.getElementById('sb-ov').addEventListener('click', function() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sb-ov').classList.remove('open');
+  });
+
+  document.getElementById('d-v-stores').addEventListener('click', function() { showPage('stores'); });
+  document.getElementById('d-v-expiry').addEventListener('click', function() { showPage('expiry'); });
+  document.getElementById('d-v-users').addEventListener('click', function() { showPage('users'); });
+  document.getElementById('d-v-roles').addEventListener('click', function() { showPage('roles'); });
+
+  document.getElementById('btn-new-brand').addEventListener('click', openNewBrand);
+  document.getElementById('btn-save-brand').addEventListener('click', saveBrand);
+  document.getElementById('mc-brand').addEventListener('click', function() { closeModal('m-brand'); });
+  document.getElementById('mc-brand2').addEventListener('click', function() { closeModal('m-brand'); });
+
+  document.getElementById('btn-new-store').addEventListener('click', openNewStore);
+  document.getElementById('btn-save-store').addEventListener('click', saveStore);
+  document.getElementById('mc-store').addEventListener('click', function() { closeModal('m-store'); });
+  document.getElementById('mc-store2').addEventListener('click', function() { closeModal('m-store'); });
+  document.getElementById('store-srch').addEventListener('input', renderStores);
+  document.getElementById('store-bf').addEventListener('change', renderStores);
+  document.getElementById('store-sf').addEventListener('change', renderStores);
+
+  document.getElementById('btn-new-role').addEventListener('click', openNewRole);
+  document.getElementById('btn-save-role').addEventListener('click', saveRole);
+  document.getElementById('mc-role').addEventListener('click', function() { closeModal('m-role'); });
+  document.getElementById('mc-role2').addEventListener('click', function() { closeModal('m-role'); });
+
+  document.getElementById('btn-new-user').addEventListener('click', openNewUser);
+  document.getElementById('btn-save-user').addEventListener('click', saveUser);
+  document.getElementById('mc-user').addEventListener('click', function() { closeModal('m-user'); });
+  document.getElementById('mc-user2').addEventListener('click', function() { closeModal('m-user'); });
+  document.getElementById('user-srch').addEventListener('input', renderUsers);
+  document.getElementById('user-sf').addEventListener('change', renderUsers);
+  document.getElementById('user-rf').addEventListener('change', renderUsers);
+
+  document.getElementById('btn-do-renew').addEventListener('click', doRenew);
+
+  // Invoice template buttons
+  var btnNI = document.getElementById('btn-new-invoice'); if(btnNI) btnNI.addEventListener('click', openNewInvoice);
+  document.getElementById('btn-save-invoice').addEventListener('click', saveInvoice);
+  document.getElementById('mc-inv').addEventListener('click', function() { closeModal('m-invoice'); });
+  document.getElementById('mc-inv2').addEventListener('click', function() { closeModal('m-invoice'); });
+  // Live preview on input change
+  ['inv-biz','inv-tag','inv-addr1','inv-addr2','inv-phone','inv-tax','inv-footer'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('input', updateInvPreview);
+  });
+  ['inv-style'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('change', updateInvPreview);
+  });
+  var invSF = document.getElementById('inv-store-f'); if(invSF) invSF.addEventListener('change', renderInvoices);
+  document.getElementById('mc-renew').addEventListener('click', function() { closeModal('m-renew'); });
+  document.getElementById('mc-renew2').addEventListener('click', function() { closeModal('m-renew'); });
+
+  document.querySelectorAll('.modal-ov').forEach(function(ov) {
+    ov.addEventListener('click', function(e) { if (e.target === ov) ov.classList.remove('open'); });
+  });
+});
+
+})();
+</script>
+</body>
+</html>
