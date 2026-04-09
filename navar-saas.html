@@ -648,11 +648,55 @@ async function loadAllData() {
     S.invoices = newInvoices;
     document.getElementById('brand-badge').textContent = S.brands.length;
     console.log('Loaded from Supabase:', S.brands.length, 'brands,', S.stores.length, 'stores,', S.users.length, 'users');
+    // Save to localStorage as cache
+    saveToCache();
   } catch(e) {
     console.warn('loadAllData error:', e);
-    toast('Error loading data: ' + e.message, 'err');
+    // Try loading from cache if Supabase fails
+    if (loadFromCache()) {
+      console.log('Loaded from cache:', S.brands.length, 'brands,', S.stores.length, 'stores');
+      toast('Loaded from local cache (offline mode)', 'inf');
+    } else {
+      toast('Could not load data. Check connection.', 'err');
+    }
   }
   showLoading(false);
+}
+
+function saveToCache() {
+  try {
+    localStorage.setItem('saas_cache_brands',   JSON.stringify(S.brands));
+    localStorage.setItem('saas_cache_stores',   JSON.stringify(S.stores));
+    localStorage.setItem('saas_cache_roles',    JSON.stringify(S.roles));
+    localStorage.setItem('saas_cache_users',    JSON.stringify(S.users));
+    localStorage.setItem('saas_cache_invoices', JSON.stringify(S.invoices));
+    localStorage.setItem('saas_cache_time',     Date.now().toString());
+    console.log('Cache saved:', S.brands.length, 'brands,', S.stores.length, 'stores');
+  } catch(e) { console.warn('Cache save error:', e); }
+}
+
+function loadFromCache() {
+  try {
+    var brands   = JSON.parse(localStorage.getItem('saas_cache_brands')   || 'null');
+    var stores   = JSON.parse(localStorage.getItem('saas_cache_stores')   || 'null');
+    var roles    = JSON.parse(localStorage.getItem('saas_cache_roles')    || 'null');
+    var users    = JSON.parse(localStorage.getItem('saas_cache_users')    || 'null');
+    var invoices = JSON.parse(localStorage.getItem('saas_cache_invoices') || 'null');
+    var cacheTime = parseInt(localStorage.getItem('saas_cache_time') || '0');
+    
+    if (brands && brands.length >= 0) {
+      S.brands   = brands;
+      S.stores   = stores   || [];
+      S.roles    = roles    || [];
+      S.users    = users    || [];
+      S.invoices = invoices || [];
+      var age = Math.round((Date.now() - cacheTime) / 60000);
+      console.log('Cache loaded. Age:', age, 'minutes');
+      document.getElementById('brand-badge').textContent = S.brands.length;
+      return true;
+    }
+    return false;
+  } catch(e) { console.warn('Cache load error:', e); return false; }
 }
 
 function togglePassVis() {
@@ -897,6 +941,7 @@ async function saveBrand() {
     Object.assign(S.brands[i], localData);
     await dbUpdate('navar_brands', eid, data);
     toast('Brand updated', 'ok');
+    saveToCache();
   } else {
     var newId = 'b' + Date.now();
     data.id = newId;
@@ -904,6 +949,7 @@ async function saveBrand() {
     S.brands.push(localData);
     await dbInsert('navar_brands', data);
     toast('Brand created', 'ok');
+    saveToCache();
   }
   closeModal('m-brand');
   renderBrands();
@@ -1140,12 +1186,14 @@ async function saveStore() {
     var i = S.stores.findIndex(function(s) { return s.id === eid; });
     Object.assign(S.stores[i], data);
     toast('Store updated', 'ok');
+    saveToCache();
   } else {
     // Use the store code as ID if provided, otherwise auto-generate
     var codeVal = (document.getElementById('s-code').value || '').trim().replace(/\s+/g,'-');
     data.id = codeVal || ('s' + Date.now());
     S.stores.push(data);
     toast('Store created', 'ok');
+    saveToCache();
   }
   // Save to Supabase
   var sbData = {
@@ -1475,12 +1523,14 @@ async function saveUser() {
     Object.assign(S.users[i], data);
     await dbUpdate('navar_users', eid, sbData);
     toast('User updated', 'ok');
+    saveToCache();
   } else {
     var newId = 'u' + Date.now();
     data.id = newId; sbData.id = newId;
     S.users.push(data);
     await dbInsert('navar_users', sbData);
     toast('User created', 'ok');
+    saveToCache();
   }
   closeModal('m-user');
   renderUsers();
@@ -1704,11 +1754,25 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('login-screen').classList.remove('active');
     document.getElementById('app-screen').classList.add('active');
     document.getElementById('dash-date').textContent = new Date().toLocaleDateString('en-GB', {weekday:'long',year:'numeric',month:'long',day:'numeric'});
-    // Supabase already init'd above
-    console.log('Auto-login: sb ready =', !!sb);
-    loadAllData().then(function() {
-      console.log('Auto-login: data loaded. brands=', S.brands.length, 'stores=', S.stores.length);
+    
+    // STEP 1: Load from cache immediately (instant, no network needed)
+    var cacheLoaded = loadFromCache();
+    if (cacheLoaded) {
       showPage('dashboard');
+      console.log('Showing cached data instantly');
+    }
+    
+    // STEP 2: Sync from Supabase in background
+    loadAllData().then(function() {
+      console.log('Background sync done. brands=', S.brands.length, 'stores=', S.stores.length);
+      // Refresh current page with fresh data
+      var pg = document.querySelector('.page.active');
+      if (pg) {
+        var pgId = pg.id.replace('page-', '');
+        var fns = {dashboard:renderDashboard, brands:renderBrands, stores:renderStores, 
+                   expiry:renderExpiry, roles:renderRoles, users:renderUsers, invoices:renderInvoices};
+        if (fns[pgId]) fns[pgId]();
+      }
     });
     return;
   }
