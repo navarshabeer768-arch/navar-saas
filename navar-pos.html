@@ -10,7 +10,7 @@ if ('serviceWorker' in navigator) {
   caches.keys().then(keys => {
     keys.forEach(k => { caches.delete(k); console.log('Cache deleted:', k); });
   });
-}
+}a
 </script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -1455,6 +1455,14 @@ function featureOn(key) {
 }
 
 // New login function replacing submitPin
+// Check if current user has a specific permission
+function hasPermission(perm) {
+  if (!POS_CURRENT_USER) return false;
+  var perms = POS_CURRENT_USER.perms || JSON.parse(localStorage.getItem('navar_user_perms') || '[]');
+  if (perms.indexOf('all') !== -1 || currentUserRole === 'admin') return true;
+  return perms.indexOf(perm) !== -1;
+}
+
 async function previewStoreName(storeId) {
   if (!storeId || !sb) return;
   try {
@@ -1512,16 +1520,18 @@ async function submitPosLogin() {
 
   try {
     // 1. Check navar_stores for admin login
-    // Search by id first, then by code if not found
+    // Search by id first, then by code
     var storeRes = await sb.from('navar_stores').select('*').eq('id', STORE_ID).single();
     if (!storeRes.data) {
-      // Try searching by code field
       var codeRes = await sb.from('navar_stores').select('*').eq('code', STORE_ID).single();
       if (codeRes.data) {
         storeRes = codeRes;
-        // Update STORE_ID to the real id
         STORE_ID = codeRes.data.id;
         localStorage.setItem('navar_store_id', STORE_ID);
+      } else {
+        // Also try name match (case insensitive won't work in supabase anon, skip)
+        err.textContent = 'Store not found: "' + STORE_ID + '". Check Store ID in SaaS dashboard.';
+        return;
       }
     }
     if (storeRes.data) {
@@ -1606,7 +1616,24 @@ async function submitPosLogin() {
   }
 
   if (loginOk) {
-    POS_CURRENT_USER = {name: loginName, uname: uname, role: loginRole};
+    // Store user permissions
+    var userPermissions = [];
+    if (storeRes && storeRes.data) {
+      var storeAdminUser = (storeRes.data.admin_user || '').trim();
+      if (uname === storeAdminUser) {
+        userPermissions = ['all']; // admin has all permissions
+      } else if (typeof storeRes.data !== 'undefined') {
+        // Try to get permissions from navar_users
+        try {
+          var permRes = await sb.from('navar_users').select('permissions').eq('store_id', STORE_ID).eq('username', uname).single();
+          if (permRes.data && permRes.data.permissions) {
+            userPermissions = typeof permRes.data.permissions === 'string' ? JSON.parse(permRes.data.permissions) : permRes.data.permissions;
+          }
+        } catch(e) {}
+      }
+    }
+    localStorage.setItem('navar_user_perms', JSON.stringify(userPermissions));
+    POS_CURRENT_USER = {name: loginName, uname: uname, role: loginRole, perms: userPermissions};
     err.textContent = '';
     document.getElementById('pin-screen').classList.add('hidden');
     currentUserRole = loginRole;
@@ -1619,6 +1646,7 @@ async function submitPosLogin() {
     } catch(e) { console.warn('DB init after login:', e); }
     applyRoleUI();
     applyFeatureToggles();
+    applyUserPermissions();
     showScreen('home-screen');
     resetLockTimer();
     logAudit('Login', loginName + ' logged in');
@@ -1662,6 +1690,32 @@ function applyFeatureToggles() {
     els.forEach(function(el) {
       el.style.display = featureOn(key.replace('feature_','')) ? '' : 'none';
     });
+  });
+}
+
+// Apply per-user access permissions to home screen
+function applyUserPermissions() {
+  var perms = (POS_CURRENT_USER && POS_CURRENT_USER.perms) || [];
+  if (perms.indexOf('all') !== -1 || currentUserRole === 'admin') return; // admin sees everything
+  // Map permission keys to home screen data-feature selectors
+  var permMap = {
+    'sales':     '[data-feature="sales"],[href="#new-sale"],#btn-new-sale',
+    'inventory': '[data-feature="stock_count"],[data-feature="truck_load"]',
+    'truck':     '[data-feature="truck_load"]',
+    'expenses':  '[data-feature="expenses"]',
+    'reports':   '[data-feature="reports"]',
+    'targets':   '[data-feature="targets"]',
+    'handover':  '[data-feature="handover"]',
+    'customers': '[data-feature="customers"]',
+    'invoices':  '[data-feature="invoices"]',
+  };
+  // Hide items user doesn't have access to
+  Object.keys(permMap).forEach(function(perm) {
+    if (perms.indexOf(perm) === -1) {
+      document.querySelectorAll(permMap[perm]).forEach(function(el) {
+        el.style.display = 'none';
+      });
+    }
   });
 }
 
