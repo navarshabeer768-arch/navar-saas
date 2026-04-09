@@ -640,16 +640,29 @@ async function loadAllData() {
       };
     });
 
-    // Assign all at once - atomic update
-    S.brands   = newBrands;
-    S.stores   = newStores;
-    S.roles    = newRoles;
-    S.users    = newUsers;
-    S.invoices = newInvoices;
+    // Only update S if Supabase returned actual data (not empty due to connection failure)
+    // Check: if all arrays are empty AND we have cache, Supabase probably failed silently
+    var sbReturnedData = newBrands.length > 0 || newStores.length > 0 || newUsers.length > 0;
+    var hasCache = localStorage.getItem('saas_cache_brands') !== null;
+    
+    if (sbReturnedData) {
+      // Got real data from Supabase - update everything
+      S.brands   = newBrands;
+      S.stores   = newStores;
+      S.roles    = newRoles;
+      S.users    = newUsers;
+      S.invoices = newInvoices;
+      saveToCache(); // Update cache with fresh data
+      console.log('Supabase sync OK:', S.brands.length, 'brands,', S.stores.length, 'stores');
+    } else if (hasCache) {
+      // Supabase returned empty - keep existing S data (from cache)
+      console.log('Supabase returned empty - keeping cache data');
+    } else {
+      // No cache and no Supabase data
+      S.brands = []; S.stores = []; S.roles = []; S.users = []; S.invoices = [];
+      console.log('No data available');
+    }
     document.getElementById('brand-badge').textContent = S.brands.length;
-    console.log('Loaded from Supabase:', S.brands.length, 'brands,', S.stores.length, 'stores,', S.users.length, 'users');
-    // Save to localStorage as cache
-    saveToCache();
   } catch(e) {
     console.warn('loadAllData error:', e);
     // Try loading from cache if Supabase fails
