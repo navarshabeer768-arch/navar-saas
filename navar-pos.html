@@ -10,7 +10,7 @@ if ('serviceWorker' in navigator) {
   caches.keys().then(keys => {
     keys.forEach(k => { caches.delete(k); console.log('Cache deleted:', k); });
   });
-}a
+}
 </script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -1436,8 +1436,8 @@ input[type=number]{-moz-appearance:textfield;}
 // ═══════════════════════════════════════════════
 // NAVAR SAAS — Multi-store POS config
 // ═══════════════════════════════════════════════
-const SUPABASE_URL = localStorage.getItem('navar_sb_url') || 'https://syyaudfbilutkgsamjt.supabase.co';
-const SUPABASE_KEY = localStorage.getItem('navar_sb_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5eWF1ZGZiZmlsdXRrZ3NhbWp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NjU1OTMsImV4cCI6MjA5MTI0MTU5M30.s-eHveOcRFVXkNTg0NcwfUEnWuFUd9LShPaSJEaIW6o';
+const SUPABASE_URL = localStorage.getItem('navar_sb_url') || 'https://copwoaaquhlprzydpseh.supabase.co';
+const SUPABASE_KEY = localStorage.getItem('navar_sb_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvcHdvYWFxdWhscHJ6eWRwc2VoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2NjAyNzQsImV4cCI6MjA4OTIzNjI3NH0.9uFFf7ejGn6xb2U5tiKJXvMyu1XKIZXbubG7B8kWF2g';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // Store context — set from SaaS or localStorage
