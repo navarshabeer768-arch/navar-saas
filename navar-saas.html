@@ -1151,14 +1151,16 @@ async function saveStore() {
     Object.assign(S.stores[i], data);
     toast('Store updated', 'ok');
   } else {
-    data.id = 's' + Date.now();
+    // Use the store code as ID if provided, otherwise auto-generate
+    var codeVal = (document.getElementById('s-code').value || '').trim().replace(/\s+/g,'-');
+    data.id = codeVal || ('s' + Date.now());
     S.stores.push(data);
     toast('Store created', 'ok');
   }
   // Save to Supabase
   var sbData = {
     id: eid || data.id,
-    brand_id: data.brand, name: data.name, code: data.code,
+    brand_id: data.brand, name: data.name, code: data.code || data.id,
     type: data.type, address: data.addr, phone: data.phone, email: data.email,
     start_date: data.start, expiry_date: data.expiry,
     admin_user: data.user, status: data.status,
@@ -1414,8 +1416,20 @@ function openNewUser() {
   document.getElementById('u-eid').value = '';
   document.getElementById('m-user-t').textContent = 'Add User';
   ['u-name','u-uname','u-email','u-pass','u-pass2','u-phone'].forEach(function(id) { document.getElementById(id).value = ''; });
-  document.getElementById('u-store').innerHTML = S.stores.map(function(s) { return '<option value="' + s.id + '">' + s.name + '</option>'; }).join('');
-  document.getElementById('u-role').innerHTML = S.roles.map(function(r) { return '<option value="' + r.id + '">' + r.name + '</option>'; }).join('');
+  // Reset permissions - default: sales only checked
+  ['sales','inventory','customers','invoices','truck','expenses','reports','settings','discount','refund','targets','handover'].forEach(function(k) {
+    var el = document.getElementById('up-'+k);
+    if (el) el.checked = (k === 'sales');
+  });
+  document.getElementById('u-store').innerHTML = '<option value="">Select Store</option>' + S.stores.map(function(s) { return '<option value="' + s.id + '">' + s.name + '</option>'; }).join('');
+  // Use roles from S.roles, or show default roles if empty
+  var roleOpts = S.roles.length > 0 ? S.roles : [
+    {id:'r_owner',name:'Owner'},
+    {id:'r_manager',name:'Manager'},
+    {id:'r_cashier',name:'Cashier'},
+    {id:'r_waiter',name:'Waiter/Staff'}
+  ];
+  document.getElementById('u-role').innerHTML = '<option value="">Select Role</option>' + roleOpts.map(function(r) { return '<option value="' + r.id + '">' + r.name + '</option>'; }).join('');
   openModal('m-user');
 }
 
@@ -1430,8 +1444,18 @@ function editUser(id) {
   document.getElementById('u-phone').value = u.phone || '';
   document.getElementById('u-pass').value = '';
   document.getElementById('u-pass2').value = '';
+  // Load saved permissions
+  var savedPerms = u.perms || [];
+  ['sales','inventory','customers','invoices','truck','expenses','reports','settings','discount','refund','targets','handover'].forEach(function(k) {
+    var el = document.getElementById('up-'+k);
+    if (el) el.checked = savedPerms.length === 0 ? (k === 'sales') : savedPerms.indexOf(k) !== -1;
+  });
   document.getElementById('u-store').innerHTML = S.stores.map(function(s) { return '<option value="' + s.id + '"' + (s.id === u.store ? ' selected' : '') + '>' + s.name + '</option>'; }).join('');
-  document.getElementById('u-role').innerHTML = S.roles.map(function(r) { return '<option value="' + r.id + '"' + (r.id === u.role ? ' selected' : '') + '>' + r.name + '</option>'; }).join('');
+  var editRoleOpts = S.roles.length > 0 ? S.roles : [
+    {id:'r_owner',name:'Owner'},{id:'r_manager',name:'Manager'},
+    {id:'r_cashier',name:'Cashier'},{id:'r_waiter',name:'Waiter/Staff'}
+  ];
+  document.getElementById('u-role').innerHTML = editRoleOpts.map(function(r) { return '<option value="' + r.id + '"' + (r.id === u.role ? ' selected' : '') + '>' + r.name + '</option>'; }).join('');
   openModal('m-user');
 }
 
@@ -1446,9 +1470,15 @@ async function saveUser() {
   if (!name || !uname || !store || !role) { toast('Fill required fields', 'err'); return; }
   if (!eid && !pass) { toast('Password required', 'err'); return; }
   if (pass && pass !== pass2) { toast('Passwords do not match', 'err'); return; }
-  var data = {name:name, uname:uname, email:document.getElementById('u-email').value, store:store, role:role, phone:document.getElementById('u-phone').value, status:'active'};
+  // Collect permissions
+  var permKeys = ['sales','inventory','customers','invoices','truck','expenses','reports','settings','discount','refund','targets','handover'];
+  var userPerms = permKeys.filter(function(k) {
+    var el = document.getElementById('up-'+k);
+    return el && el.checked;
+  });
+  var data = {name:name, uname:uname, email:document.getElementById('u-email').value, store:store, role:role, phone:document.getElementById('u-phone').value, status:'active', perms:userPerms};
   if (pass) data.pass = pass;
-  var sbData = {name:name, username:uname, email:data.email, store_id:store, role_id:role, phone:data.phone, status:'active'};
+  var sbData = {name:name, username:uname, email:data.email, store_id:store, role_id:role, phone:data.phone, status:'active', permissions:JSON.stringify(userPerms)};
   if (pass) sbData.password = pass;
   if (eid) {
     var i = S.users.findIndex(function(u) { return u.id === eid; });
