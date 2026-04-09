@@ -676,6 +676,27 @@ async function loadAllData() {
   showLoading(false);
 }
 
+async function checkSupabaseConnection() {
+  var dot = document.getElementById('sb-dot');
+  var txt = document.getElementById('sb-txt');
+  if (!dot || !txt) return;
+  try {
+    var res = await sb.from('navar_admins').select('id').limit(1);
+    if (res.error) throw new Error(res.error.message);
+    dot.style.background = '#22c55e';
+    txt.textContent = 'Supabase Connected';
+    txt.parentElement.style.background = '#f0fdf4';
+    txt.parentElement.style.color = '#16a34a';
+    return true;
+  } catch(e) {
+    dot.style.background = '#ef4444';
+    txt.textContent = 'Offline (cache mode)';
+    txt.parentElement.style.background = '#fef2f2';
+    txt.parentElement.style.color = '#dc2626';
+    return false;
+  }
+}
+
 function saveToCache() {
   try {
     localStorage.setItem('saas_cache_brands',   JSON.stringify(S.brands));
@@ -804,7 +825,7 @@ function doLogin() {
       // Save session so refresh works
       localStorage.setItem('saas_logged_in', '1');
       localStorage.setItem('saas_user', v);
-      loadAllData().then(function() { showPage('dashboard'); });
+      loadAllData().then(function() { showPage('dashboard'); checkSupabaseConnection(); });
     } else {
       toast('Invalid credentials', 'err');
     }
@@ -1868,6 +1889,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Sync from Supabase in background
+    checkSupabaseConnection();
     loadAllData().then(function() {
       var pg = document.querySelector('.page.active');
       if (pg) {
