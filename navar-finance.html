@@ -1059,7 +1059,16 @@ async function submitFinLogin() {
   var loginOk = false;
 
   try {
+    // Search by id first, then by code
     var storeRes = await sb.from('navar_stores').select('*').eq('id', FIN_STORE_ID).single();
+    if (!storeRes.data) {
+      var codeRes = await sb.from('navar_stores').select('*').eq('code', FIN_STORE_ID).single();
+      if (codeRes.data) {
+        storeRes = codeRes;
+        FIN_STORE_ID = codeRes.data.id;
+        localStorage.setItem('navar_store_id', FIN_STORE_ID);
+      }
+    }
     if (storeRes.data) {
       var sd = storeRes.data;
       if (sd.expiry_date && new Date(sd.expiry_date) < new Date()) {
