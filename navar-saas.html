@@ -603,15 +603,12 @@ async function loadAllData() {
       dbFetch('navar_users'),
       dbFetch('navar_invoice_templates'),
     ]);
-    // Clear existing data before loading fresh from Supabase
-    S.brands = []; S.stores = []; S.roles = []; S.users = []; S.invoices = [];
-
-    // Map to S state — handle both DB format and legacy format
-    S.brands = brands.map(function(b) {
+    // Only replace if we got actual data back
+    var newBrands = brands.map(function(b) {
       return {id: b.id, name: b.name, code: b.code, desc: b.description || '', color: b.color || 'blue', icon: b.icon || '&#127970;', email: b.email || ''};
     });
 
-    S.stores = stores.map(function(s) {
+    var newStores = stores.map(function(s) {
       return {
         id: s.id, brand: s.brand_id, name: s.name, code: s.code || '',
         type: s.type || 'Retail', addr: s.address || '', phone: s.phone || '', email: s.email || '',
@@ -622,16 +619,16 @@ async function loadAllData() {
       };
     });
 
-    S.roles = roles.map(function(r) {
+    var newRoles = roles.map(function(r) {
       var perms = typeof r.permissions === 'string' ? JSON.parse(r.permissions || '[]') : (r.permissions || []);
       return {id: r.id, name: r.name, desc: r.description || '', icon: r.icon || '&#128737;', perms: perms, store: r.store_id};
     });
 
-    S.users = users.map(function(u) {
+    var newUsers = users.map(function(u) {
       return {id: u.id, name: u.name, uname: u.username, email: u.email || '', role: u.role_id, store: u.store_id, phone: u.phone || '', status: u.status || 'active'};
     });
 
-    S.invoices = invTemplates.map(function(t) {
+    var newInvoices = invTemplates.map(function(t) {
       return {
         id: t.id, name: t.name, store: t.store_id,
         biz: t.biz_name || '', tag: t.tagline || '',
@@ -643,6 +640,12 @@ async function loadAllData() {
       };
     });
 
+    // Assign all at once - atomic update
+    S.brands   = newBrands;
+    S.stores   = newStores;
+    S.roles    = newRoles;
+    S.users    = newUsers;
+    S.invoices = newInvoices;
     document.getElementById('brand-badge').textContent = S.brands.length;
     console.log('Loaded from Supabase:', S.brands.length, 'brands,', S.stores.length, 'stores,', S.users.length, 'users');
   } catch(e) {
@@ -741,6 +744,9 @@ function doLogin() {
       document.getElementById('login-screen').classList.remove('active');
       document.getElementById('app-screen').classList.add('active');
       document.getElementById('dash-date').textContent = new Date().toLocaleDateString('en-GB', {weekday:'long',year:'numeric',month:'long',day:'numeric'});
+      // Save session so refresh works
+      sessionStorage.setItem('saas_logged_in', '1');
+      sessionStorage.setItem('saas_user', v);
       loadAllData().then(function() { showPage('dashboard'); });
     } else {
       toast('Invalid credentials', 'err');
@@ -761,9 +767,12 @@ async function authenticateAdmin(username, password) {
 }
 
 function doLogout() {
+  sessionStorage.removeItem('saas_logged_in');
+  sessionStorage.removeItem('saas_user');
   document.getElementById('app-screen').classList.remove('active');
   document.getElementById('login-screen').classList.add('active');
   S.user = null;
+  S.brands = []; S.stores = []; S.roles = []; S.users = []; S.invoices = [];
 }
 
 // DASHBOARD
@@ -1683,6 +1692,19 @@ function previewInvoice(id) {
 
 // BOOT - everything via addEventListener, zero inline onclick
 document.addEventListener('DOMContentLoaded', function() {
+  // Check for existing session (survives page navigation but not full refresh)
+  if (sessionStorage.getItem('saas_logged_in') === '1') {
+    S.user = {name: 'Super Admin', role: 'Owner'};
+    document.getElementById('sb-nm').textContent = 'Super Admin';
+    document.getElementById('sb-rl').textContent = 'Owner';
+    document.getElementById('sb-av').textContent = 'SA';
+    document.getElementById('login-screen').classList.remove('active');
+    document.getElementById('app-screen').classList.add('active');
+    document.getElementById('dash-date').textContent = new Date().toLocaleDateString('en-GB', {weekday:'long',year:'numeric',month:'long',day:'numeric'});
+    initSupabase();
+    loadAllData().then(function() { showPage('dashboard'); });
+    return;
+  }
   // Add loading bar to DOM
   var lb = document.createElement('div');
   lb.id = 'saas-loading-bar';
