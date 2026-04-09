@@ -134,12 +134,20 @@ tr:hover td{background:#f8f9ff;}
 <!-- NAVAR FINANCE LOGIN -->
 <div id="pin-screen" style="position:fixed;inset:0;background:linear-gradient(135deg,#0f1b35 0%,#1a3a6e 60%,#2a52a0 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99999;padding:32px 24px;">
   <div style="text-align:center;margin-bottom:32px;">
-    <div style="width:64px;height:64px;background:#f5a623;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:1.8rem;font-weight:900;color:#0f1b35;margin:0 auto 16px;">N</div>
+    <div id="fin-logo-letter" style="width:64px;height:64px;background:#f5a623;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:1.8rem;font-weight:900;color:#0f1b35;margin:0 auto 16px;">N</div>
     <div style="color:#fff;font-size:1.6rem;font-weight:900;letter-spacing:-.5px;" id="fin-login-store">Navar Finance</div>
     <div style="color:rgba(255,255,255,.6);font-size:.85rem;margin-top:4px;" id="fin-login-brand">Finance & Accounts</div>
   </div>
   <div style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:20px;padding:28px 32px;width:100%;max-width:360px;">
     <div style="color:#fff;font-size:.95rem;font-weight:700;margin-bottom:20px;text-align:center;">Sign in to Finance</div>
+    <div style="margin-bottom:14px;">
+      <label style="font-size:.75rem;font-weight:700;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.6px;display:block;margin-bottom:6px;">Store ID</label>
+      <input type="text" id="fin-login-storeid" placeholder="Enter your Store ID"
+        style="width:100%;padding:13px 16px;border:2px solid rgba(255,255,255,.2);border-radius:11px;background:rgba(255,255,255,.1);color:#fff;font-family:'Plus Jakarta Sans',sans-serif;font-size:.95rem;outline:none;transition:border-color .2s;"
+        onfocus="this.style.borderColor='#f5a623'" onblur="this.style.borderColor='rgba(255,255,255,.2)';finPreviewStore(this.value)"
+        onkeydown="if(event.key==='Enter')document.getElementById('fin-login-user').focus()">
+      <div style="font-size:.7rem;color:rgba(255,255,255,.4);margin-top:3px;">Get your Store ID from the Navar SaaS admin</div>
+    </div>
     <div style="margin-bottom:14px;">
       <label style="font-size:.75rem;font-weight:700;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.6px;display:block;margin-bottom:6px;">Username</label>
       <input type="text" id="fin-login-user" placeholder="Enter username"
@@ -1010,29 +1018,97 @@ function doFinResetData() {
 // Legacy PIN functions replaced by Navar username/password login
 
 // New Finance login function
-function submitFinLogin() {
+async function finPreviewStore(storeId) {
+  if (!storeId || !sb) return;
+  try {
+    var res = await sb.from('navar_stores').select('id,name,brand_id').eq('id', storeId.trim()).single();
+    if (res.data) {
+      var el = document.getElementById('fin-login-store');
+      var logoEl = document.getElementById('fin-logo-letter');
+      if (el) el.textContent = res.data.name.toUpperCase();
+      if (logoEl) logoEl.textContent = res.data.name[0].toUpperCase();
+      if (res.data.brand_id) {
+        var br = await sb.from('navar_brands').select('name').eq('id', res.data.brand_id).single();
+        var bEl = document.getElementById('fin-login-brand');
+        if (br.data && bEl) bEl.textContent = br.data.name.toUpperCase();
+      }
+    }
+  } catch(e) {}
+}
+
+async function submitFinLogin() {
+  var storeIdInput = (document.getElementById('fin-login-storeid') && document.getElementById('fin-login-storeid').value || '').trim();
   var uname = (document.getElementById('fin-login-user').value || '').trim();
   var pass  = (document.getElementById('fin-login-pass').value || '').trim();
   var err   = document.getElementById('fin-login-error');
   if (!uname || !pass) { err.textContent = 'Please enter username and password'; return; }
 
-  // Check against store users
-  var users = FIN_STORE_USERS;
-  var match = users.find(function(u) {
-    return (u.username === uname || u.uname === uname) && u.pass === pass && u.store === FIN_STORE_ID;
-  });
+  // Set store ID from input if provided
+  if (storeIdInput && storeIdInput !== FIN_STORE_ID) {
+    localStorage.removeItem('navar_store_name');
+    localStorage.removeItem('navar_admin_user');
+    localStorage.removeItem('navar_admin_pass');
+    FIN_STORE_ID = storeIdInput;
+    localStorage.setItem('navar_store_id', FIN_STORE_ID);
+  } else if (storeIdInput) {
+    FIN_STORE_ID = storeIdInput;
+    localStorage.setItem('navar_store_id', FIN_STORE_ID);
+  }
 
-  // Store admin credentials
-  var adminUser = localStorage.getItem('navar_admin_user') || '';
-  var adminPass = localStorage.getItem('navar_admin_pass') || '';
-  var isAdmin   = (uname === adminUser && pass === adminPass) || (uname === 'admin' && pass === 'admin123' && FIN_STORE_ID === 'default');
+  err.textContent = 'Signing in...';
+  var loginOk = false;
 
-  if (match || isAdmin) {
+  try {
+    var storeRes = await sb.from('navar_stores').select('*').eq('id', FIN_STORE_ID).single();
+    if (storeRes.data) {
+      var sd = storeRes.data;
+      if (sd.expiry_date && new Date(sd.expiry_date) < new Date()) {
+        err.textContent = 'Store license expired. Contact admin.'; return;
+      }
+      var dbUser = (sd.admin_user || '').trim();
+      var dbPass = (sd.admin_pass || '').trim();
+      if (uname === dbUser && pass === dbPass) {
+        loginOk = true;
+        FIN_STORE_NAME = sd.name;
+        localStorage.setItem('navar_store_name', sd.name);
+        localStorage.setItem('navar_admin_user', sd.admin_user);
+        localStorage.setItem('navar_admin_pass', sd.admin_pass);
+        localStorage.setItem('navar_features', JSON.stringify(
+          typeof sd.features === 'string' ? JSON.parse(sd.features || '{}') : (sd.features || {})
+        ));
+      }
+      if (!loginOk) {
+        var ur = await sb.from('navar_users').select('*').eq('store_id', FIN_STORE_ID).eq('username', uname).eq('status','active').single();
+        if (ur.data && (ur.data.password||'').trim() === pass) {
+          loginOk = true;
+          FIN_STORE_NAME = sd.name;
+          localStorage.setItem('navar_store_name', sd.name);
+        }
+      }
+      if (loginOk) {
+        var finNameEl = document.getElementById('fin-login-store');
+        var finLogoEl = document.getElementById('fin-logo-letter');
+        if (finNameEl) finNameEl.textContent = sd.name.toUpperCase();
+        if (finLogoEl) finLogoEl.textContent = sd.name[0].toUpperCase();
+      }
+    } else {
+      err.textContent = 'Store ID not found: ' + FIN_STORE_ID; return;
+    }
+  } catch(e) { console.warn('Fin login error:', e); }
+
+  // Fallback: local credentials
+  if (!loginOk) {
+    var adminUser = localStorage.getItem('navar_admin_user') || '';
+    var adminPass = localStorage.getItem('navar_admin_pass') || '';
+    if (uname === adminUser && pass === adminPass) loginOk = true;
+  }
+
+  if (loginOk) {
     err.textContent = '';
     document.getElementById('pin-screen').style.display = 'none';
     applyFinFeatureToggles();
   } else {
-    err.textContent = 'Invalid username or password';
+    err.textContent = 'Wrong username or password for this store';
     document.getElementById('fin-login-pass').value = '';
     document.getElementById('fin-login-pass').focus();
   }
