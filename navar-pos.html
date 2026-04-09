@@ -1512,7 +1512,18 @@ async function submitPosLogin() {
 
   try {
     // 1. Check navar_stores for admin login
+    // Search by id first, then by code if not found
     var storeRes = await sb.from('navar_stores').select('*').eq('id', STORE_ID).single();
+    if (!storeRes.data) {
+      // Try searching by code field
+      var codeRes = await sb.from('navar_stores').select('*').eq('code', STORE_ID).single();
+      if (codeRes.data) {
+        storeRes = codeRes;
+        // Update STORE_ID to the real id
+        STORE_ID = codeRes.data.id;
+        localStorage.setItem('navar_store_id', STORE_ID);
+      }
+    }
     if (storeRes.data) {
       var storeData = storeRes.data;
       // Check expiry
