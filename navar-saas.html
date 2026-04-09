@@ -939,17 +939,17 @@ async function saveBrand() {
   if (eid) {
     var i = S.brands.findIndex(function(b) { return b.id === eid; });
     Object.assign(S.brands[i], localData);
-    await dbUpdate('navar_brands', eid, data);
+    saveToCache(); // Save locally first
     toast('Brand updated', 'ok');
-    saveToCache();
+    try { await dbUpdate('navar_brands', eid, data); } catch(e) { console.warn('Supabase update failed, cached locally'); }
   } else {
     var newId = 'b' + Date.now();
     data.id = newId;
     localData.id = newId;
     S.brands.push(localData);
-    await dbInsert('navar_brands', data);
+    saveToCache(); // Save locally first
     toast('Brand created', 'ok');
-    saveToCache();
+    try { await dbInsert('navar_brands', data); } catch(e) { console.warn('Supabase save failed, cached locally'); }
   }
   closeModal('m-brand');
   renderBrands();
@@ -960,7 +960,8 @@ async function deleteBrand(id) {
   if (!confirm('Delete brand and all its stores?')) return;
   S.brands = S.brands.filter(function(b) { return b.id !== id; });
   S.stores = S.stores.filter(function(s) { return s.brand !== id; });
-  await dbDelete('navar_brands', id);
+  saveToCache();
+  try { await dbDelete('navar_brands', id); } catch(e) {}
   toast('Brand deleted', 'inf');
   renderBrands();
 }
@@ -1205,11 +1206,14 @@ async function saveStore() {
     features: JSON.stringify(features || {})
   };
   if (data.pass) sbData.admin_pass = data.pass;
-  if (eid) {
-    await dbUpdate('navar_stores', eid, sbData);
-  } else {
-    await dbInsert('navar_stores', sbData);
-  }
+  saveToCache(); // Save locally first
+  try {
+    if (eid) {
+      await dbUpdate('navar_stores', eid, sbData);
+    } else {
+      await dbInsert('navar_stores', sbData);
+    }
+  } catch(e) { console.warn('Supabase store save failed, cached locally'); }
   closeModal('m-store');
   renderStores();
 }
@@ -1218,7 +1222,8 @@ async function deleteStore(id) {
   if (!confirm('Delete this store?')) return;
   S.stores = S.stores.filter(function(s) { return s.id !== id; });
   S.users.forEach(function(u) { if (u.store === id) u.store = ''; });
-  await dbDelete('navar_stores', id);
+  saveToCache();
+  try { await dbDelete('navar_stores', id); } catch(e) {}
   toast('Store deleted', 'inf');
   renderStores();
 }
@@ -1386,13 +1391,15 @@ async function saveRole() {
   if (eid) {
     var i = S.roles.findIndex(function(r) { return r.id === eid; });
     Object.assign(S.roles[i], data);
-    await dbUpdate('navar_roles', eid, sbData);
+    try { await dbUpdate('navar_roles', eid, sbData); } catch(e) {}
+    saveToCache();
     toast('Role updated', 'ok');
   } else {
     var newId = 'r' + Date.now();
     data.id = newId; sbData.id = newId;
     S.roles.push(data);
-    await dbInsert('navar_roles', sbData);
+    try { await dbInsert('navar_roles', sbData); } catch(e) {}
+    saveToCache();
     toast('Role created', 'ok');
   }
   closeModal('m-role');
@@ -1521,14 +1528,16 @@ async function saveUser() {
   if (eid) {
     var i = S.users.findIndex(function(u) { return u.id === eid; });
     Object.assign(S.users[i], data);
-    await dbUpdate('navar_users', eid, sbData);
+    try { await dbUpdate('navar_users', eid, sbData); } catch(e) {}
+    saveToCache();
     toast('User updated', 'ok');
     saveToCache();
   } else {
     var newId = 'u' + Date.now();
     data.id = newId; sbData.id = newId;
     S.users.push(data);
-    await dbInsert('navar_users', sbData);
+    try { await dbInsert('navar_users', sbData); } catch(e) {}
+    saveToCache();
     toast('User created', 'ok');
     saveToCache();
   }
