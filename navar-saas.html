@@ -745,8 +745,8 @@ function doLogin() {
       document.getElementById('app-screen').classList.add('active');
       document.getElementById('dash-date').textContent = new Date().toLocaleDateString('en-GB', {weekday:'long',year:'numeric',month:'long',day:'numeric'});
       // Save session so refresh works
-      sessionStorage.setItem('saas_logged_in', '1');
-      sessionStorage.setItem('saas_user', v);
+      localStorage.setItem('saas_logged_in', '1');
+      localStorage.setItem('saas_user', v);
       loadAllData().then(function() { showPage('dashboard'); });
     } else {
       toast('Invalid credentials', 'err');
@@ -767,8 +767,8 @@ async function authenticateAdmin(username, password) {
 }
 
 function doLogout() {
-  sessionStorage.removeItem('saas_logged_in');
-  sessionStorage.removeItem('saas_user');
+  localStorage.removeItem('saas_logged_in');
+  localStorage.removeItem('saas_user');
   document.getElementById('app-screen').classList.remove('active');
   document.getElementById('login-screen').classList.add('active');
   S.user = null;
@@ -1692,8 +1692,11 @@ function previewInvoice(id) {
 
 // BOOT - everything via addEventListener, zero inline onclick
 document.addEventListener('DOMContentLoaded', function() {
-  // Check for existing session (survives page navigation but not full refresh)
-  if (sessionStorage.getItem('saas_logged_in') === '1') {
+  // Init Supabase FIRST - before anything else
+  initSupabase();
+  console.log('DOMContentLoaded: Supabase ready =', !!sb);
+  // Check for existing session
+  if (localStorage.getItem('saas_logged_in') === '1') {
     S.user = {name: 'Super Admin', role: 'Owner'};
     document.getElementById('sb-nm').textContent = 'Super Admin';
     document.getElementById('sb-rl').textContent = 'Owner';
@@ -1701,8 +1704,12 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('login-screen').classList.remove('active');
     document.getElementById('app-screen').classList.add('active');
     document.getElementById('dash-date').textContent = new Date().toLocaleDateString('en-GB', {weekday:'long',year:'numeric',month:'long',day:'numeric'});
-    initSupabase();
-    loadAllData().then(function() { showPage('dashboard'); });
+    // Supabase already init'd above
+    console.log('Auto-login: sb ready =', !!sb);
+    loadAllData().then(function() {
+      console.log('Auto-login: data loaded. brands=', S.brands.length, 'stores=', S.stores.length);
+      showPage('dashboard');
+    });
     return;
   }
   // Add loading bar to DOM
@@ -1713,8 +1720,7 @@ document.addEventListener('DOMContentLoaded', function() {
   var style = document.createElement('style');
   style.textContent = '@keyframes loadbar{0%{background-position:0%}100%{background-position:200%}}';
   document.head.appendChild(style);
-  // Init Supabase
-  initSupabase();
+  // Supabase already initialized above
   document.getElementById('dash-date').textContent = new Date().toLocaleDateString('en-GB', {weekday:'long',year:'numeric',month:'long',day:'numeric'});
 
   document.getElementById('btn-login').addEventListener('click', doLogin);
