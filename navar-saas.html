@@ -603,6 +603,8 @@ async function loadAllData() {
       dbFetch('navar_users'),
       dbFetch('navar_invoice_templates'),
     ]);
+    // Clear existing data before loading fresh from Supabase
+    S.brands = []; S.stores = []; S.roles = []; S.users = []; S.invoices = [];
 
     // Map to S state — handle both DB format and legacy format
     S.brands = brands.map(function(b) {
@@ -642,9 +644,10 @@ async function loadAllData() {
     });
 
     document.getElementById('brand-badge').textContent = S.brands.length;
+    console.log('Loaded from Supabase:', S.brands.length, 'brands,', S.stores.length, 'stores,', S.users.length, 'users');
   } catch(e) {
     console.warn('loadAllData error:', e);
-    toast('Could not load data from Supabase. Using local data.', 'inf');
+    toast('Error loading data: ' + e.message, 'err');
   }
   showLoading(false);
 }
@@ -666,34 +669,11 @@ function showLoading(on) {
 var S = {
   user: null,
   activeRole: null,
-  brands: [
-    {id:'b1',name:'TCR Group',code:'TCR',desc:'Trading & Retail',color:'blue',icon:'&#127970;',email:'info-tcr'},
-    {id:'b2',name:'FoodChain Co',code:'FCC',desc:'Restaurant Chain',color:'gold',icon:'&#127828;',email:'ops-fcc'}
-  ],
-  stores: [
-    {id:'s1',name:'TCR Main Branch',brand:'b1',code:'BR-001',type:'Retail',addr:'Al Sadd, Doha',phone:'+974 4444 1111',email:'main-tcr',start:'2024-01-01',expiry:'2026-06-30',user:'tcr.main',pass:'pass123',status:'active',features:{stock_count:true,truck_load:true,expenses:true,targets:true,handover:true,adv_orders:true,collection:true,purchases:true,assets:true,liabilities:true,bank:true,salaries:true}},
-    {id:'s2',name:'TCR Salwa Branch',brand:'b1',code:'BR-002',type:'Retail',addr:'Salwa Rd, Doha',phone:'+974 4444 2222',email:'salwa-tcr',start:'2024-03-01',expiry:'2026-04-25',user:'tcr.salwa',pass:'pass123',status:'active'},
-    {id:'s3',name:'TCR Industrial',brand:'b1',code:'BR-003',type:'Supermarket',addr:'Industrial Area',phone:'+974 4444 3333',email:'ind-tcr',start:'2023-06-01',expiry:'2026-03-15',user:'tcr.ind',pass:'pass123',status:'expired'},
-    {id:'s4',name:'FoodChain Villaggio',brand:'b2',code:'FC-001',type:'Restaurant',addr:'Villaggio Mall',phone:'+974 5555 1111',email:'vill-fcc',start:'2025-01-15',expiry:'2026-07-15',user:'fc.vill',pass:'pass123',status:'active',features:{stock_count:false,truck_load:false,expenses:true,targets:true,handover:true,adv_orders:false,collection:true,purchases:false,assets:true,liabilities:true,bank:true,salaries:true}},
-    {id:'s5',name:'FoodChain Landmark',brand:'b2',code:'FC-002',type:'Cafe',addr:'Landmark Mall',phone:'+974 5555 2222',email:'lmk-fcc',start:'2025-06-01',expiry:'2026-05-10',user:'fc.lmk',pass:'pass123',status:'active'}
-  ],
-  roles: [
-    {id:'r1',name:'Owner',desc:'Full access to everything',icon:'&#128081;',perms:['all']},
-    {id:'r2',name:'Manager',desc:'Manage store operations',icon:'&#129489;&#8205;&#128188;',perms:['order','report','employee','menu','table','printer','settings']},
-    {id:'r3',name:'Cashier',desc:'Process sales and orders',icon:'&#129534;',perms:['order','cash_drawer']},
-    {id:'r4',name:'Waiter',desc:'Take and manage orders',icon:'&#127869;',perms:['order']}
-  ],
-  users: [
-    {id:'u1',name:'Faisal Al Sayed',uname:'faisal',email:'faisal-tcr',role:'r2',store:'s1',phone:'+974 6111 1111',status:'active'},
-    {id:'u2',name:'Sameer Ahmed',uname:'sameer',email:'sameer-tcr',role:'r3',store:'s1',phone:'+974 6222 2222',status:'active'},
-    {id:'u3',name:'Ashraf Khalid',uname:'ashraf',email:'ashraf-tcr',role:'r3',store:'s2',phone:'+974 6333 3333',status:'active'},
-    {id:'u4',name:'Mahmood Ali',uname:'mahmood',email:'mahmood-tcr',role:'r2',store:'s3',phone:'+974 6444 4444',status:'suspended'},
-    {id:'u5',name:'Order Account',uname:'order',email:'order-tcr',role:'r4',store:'s1',phone:'',status:'active'}
-  ],
-  invoices: [
-    {id:'inv1',name:'Main Receipt',store:'s1',biz:'TCR Main Branch',tag:'Thank you for shopping!',addr1:'Al Sadd, Doha',addr2:'Qatar',phone:'+974 4444 1111',tax:'VAT300123456',footer:'Returns accepted within 7 days with receipt.',paper:'80mm',style:'simple',showTax:true,showLogo:false},
-    {id:'inv2',name:'FoodChain Receipt',store:'s4',biz:'FoodChain Villaggio',tag:'Bon Appetit!',addr1:'Villaggio Mall, Doha',addr2:'Qatar',phone:'+974 5555 1111',tax:'',footer:'Thank you for dining with us!',paper:'80mm',style:'bold',showTax:false,showLogo:false},
-  ],
+  brands: [],
+  stores: [],
+  roles: [],
+  users: [],
+  invoices: [],
   perms: {
     'Order':['cancel_order','view_recent','view_history','place_order','checkout','special_discount','discount','cancel_product','refund','settlement','end_of_day','add_customer','shift','open_cash_drawer','tips','change_payment'],
     'Cash Drawer':['cash_drawer_manage'],
@@ -707,6 +687,7 @@ var S = {
     'Membership':['view_membership','manage_membership']
   }
 };
+// ⚠️ All data loaded from Supabase on login — no hardcoded demo data
 
 function daysLeft(d) { return Math.floor((new Date(d) - new Date()) / 86400000); }
 
