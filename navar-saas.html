@@ -1744,38 +1744,7 @@ function previewInvoice(id) {
 document.addEventListener('DOMContentLoaded', function() {
   // Init Supabase FIRST - before anything else
   initSupabase();
-  console.log('DOMContentLoaded: Supabase ready =', !!sb);
-  // Check for existing session
-  if (localStorage.getItem('saas_logged_in') === '1') {
-    S.user = {name: 'Super Admin', role: 'Owner'};
-    document.getElementById('sb-nm').textContent = 'Super Admin';
-    document.getElementById('sb-rl').textContent = 'Owner';
-    document.getElementById('sb-av').textContent = 'SA';
-    document.getElementById('login-screen').classList.remove('active');
-    document.getElementById('app-screen').classList.add('active');
-    document.getElementById('dash-date').textContent = new Date().toLocaleDateString('en-GB', {weekday:'long',year:'numeric',month:'long',day:'numeric'});
-    
-    // STEP 1: Load from cache immediately (instant, no network needed)
-    var cacheLoaded = loadFromCache();
-    if (cacheLoaded) {
-      showPage('dashboard');
-      console.log('Showing cached data instantly');
-    }
-    
-    // STEP 2: Sync from Supabase in background
-    loadAllData().then(function() {
-      console.log('Background sync done. brands=', S.brands.length, 'stores=', S.stores.length);
-      // Refresh current page with fresh data
-      var pg = document.querySelector('.page.active');
-      if (pg) {
-        var pgId = pg.id.replace('page-', '');
-        var fns = {dashboard:renderDashboard, brands:renderBrands, stores:renderStores, 
-                   expiry:renderExpiry, roles:renderRoles, users:renderUsers, invoices:renderInvoices};
-        if (fns[pgId]) fns[pgId]();
-      }
-    });
-    return;
-  }
+
   // Add loading bar to DOM
   var lb = document.createElement('div');
   lb.id = 'saas-loading-bar';
@@ -1860,6 +1829,33 @@ document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.modal-ov').forEach(function(ov) {
     ov.addEventListener('click', function(e) { if (e.target === ov) ov.classList.remove('open'); });
   });
+
+  // ── Auto-login check (AFTER all buttons registered) ──────────
+  if (localStorage.getItem('saas_logged_in') === '1') {
+    S.user = {name: 'Super Admin', role: 'Owner'};
+    document.getElementById('sb-nm').textContent = 'Super Admin';
+    document.getElementById('sb-rl').textContent = 'Owner';
+    document.getElementById('sb-av').textContent = 'SA';
+    document.getElementById('login-screen').classList.remove('active');
+    document.getElementById('app-screen').classList.add('active');
+    document.getElementById('dash-date').textContent = new Date().toLocaleDateString('en-GB', {weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+    // Load from cache instantly
+    if (loadFromCache()) {
+      showPage('dashboard');
+    }
+
+    // Sync from Supabase in background
+    loadAllData().then(function() {
+      var pg = document.querySelector('.page.active');
+      if (pg) {
+        var pgId = pg.id.replace('page-', '');
+        var fns = {dashboard:renderDashboard, brands:renderBrands, stores:renderStores,
+                   expiry:renderExpiry, roles:renderRoles, users:renderUsers, invoices:renderInvoices};
+        if (fns[pgId]) fns[pgId]();
+      }
+    });
+  }
 });
 
 })();
