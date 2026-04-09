@@ -561,27 +561,53 @@ async function dbFetch(table, filters) {
 }
 
 async function dbInsert(table, data) {
-  if (!sb) return null;
+  if (!sb) { console.warn('dbInsert: Supabase not initialized'); return null; }
   try {
     var res = await sb.from(table).insert(data).select().single();
+    if (res.error) {
+      console.error('dbInsert FAILED on', table, ':', res.error.message, '| data:', JSON.stringify(data).substring(0,200));
+      toast('Save error: ' + res.error.message, 'err');
+      return null;
+    }
+    console.log('dbInsert OK:', table, res.data?.id);
     return res.data;
-  } catch(e) { console.warn('dbInsert error:', table, e); return null; }
+  } catch(e) {
+    console.error('dbInsert exception on', table, ':', e.message);
+    return null;
+  }
 }
 
 async function dbUpdate(table, id, data) {
-  if (!sb) return null;
+  if (!sb) { console.warn('dbUpdate: Supabase not initialized'); return null; }
   try {
     var res = await sb.from(table).update(data).eq('id', id).select().single();
+    if (res.error) {
+      console.error('dbUpdate FAILED on', table, id, ':', res.error.message);
+      toast('Update error: ' + res.error.message, 'err');
+      return null;
+    }
+    console.log('dbUpdate OK:', table, id);
     return res.data;
-  } catch(e) { console.warn('dbUpdate error:', table, e); return null; }
+  } catch(e) {
+    console.error('dbUpdate exception on', table, ':', e.message);
+    return null;
+  }
 }
 
 async function dbDelete(table, id) {
   if (!sb) return false;
   try {
-    await sb.from(table).delete().eq('id', id);
+    var res = await sb.from(table).delete().eq('id', id);
+    if (res.error) {
+      console.error('dbDelete FAILED on', table, id, ':', res.error.message);
+      return false;
+    }
+    console.log('dbDelete OK:', table, id);
     return true;
-  } catch(e) { console.warn('dbDelete error:', table, e); return false; }
+  } catch(e) {
+    console.error('dbDelete exception:', e.message);
+    return false;
+  }
 }
 
 async function dbUpsert(table, data) {
