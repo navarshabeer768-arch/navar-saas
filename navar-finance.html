@@ -945,15 +945,13 @@ tr:hover td{background:#f8f9ff;}
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
-const SUPABASE_URL = 'https://eecfwjniqctiyzjqhnku.supabase.co';
+<script>const SUPABASE_URL = 'https://eecfwjniqctiyzjqhnku.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVlY2Z3am5pcWN0aXl6anFobmt1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MjY4MjQsImV4cCI6MjA5MTQwMjgyNH0.uuXavl8TtMPlI8cDCuC5jt_j1e0AXqIOVeiYbQ9M2_w';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ── Supabase DB helpers ─────────────────────────────────
 async function dbFetch(table, storeId) {
   try {
-    var res = await sb.from(table).select('*').eq('store_id', storeId).order('id', {ascending: false});
+    var res = await sb.from(table).select('*').eq('store_id', storeId).order('id', {ascending:false});
     if (res.error) { console.error('dbFetch', table, res.error.message); return []; }
     return res.data || [];
   } catch(e) { return []; }
@@ -978,101 +976,6 @@ async function dbDelete(table, id) {
     return !res.error;
   } catch(e) { return false; }
 }
-// Update product stock in Supabase (called by purchases)
-async function updateProductStock(storeId, productId, qtyChange) {
-  try {
-    var prod = await sb.from('products').select('stock').eq('id', productId).single();
-    if (prod.data) {
-      var newStock = (parseFloat(prod.data.stock) || 0) + qtyChange;
-      await sb.from('products').update({stock: newStock}).eq('id', productId);
-    }
-  } catch(e) { console.error('updateProductStock error:', e.message); }
-}
-
-// ═══════════════════════════════════════════
-// PIN LOGIN
-// ═══════════════════════════════════════════
-const FIN_DEFAULT_PIN = '1234';
-const FIN_MASTER_PIN = '7786';
-
-function backupFinanceData() {
-  const keys = ['fin_transactions','fin_suppliers','fin_purchases','fin_employees','fin_payroll','fin_bank','fin_assets','fin_drawings','fin_purchase_orders','fin_import_costs','fin_products'];
-  const backup = { version: 1, date: new Date().toISOString(), data: {} };
-  keys.forEach(k => { try { backup.data[k] = JSON.parse(localStorage.getItem(k) || '[]'); } catch(e) { backup.data[k] = []; } });
-  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `fairway-finance-backup-${new Date().toISOString().split('T')[0]}.json`;
-  document.body.appendChild(a); a.click();
-  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 300);
-  showToast('✅ Backup downloaded!');
-}
-
-function restoreFinanceData() {
-  const input = document.createElement('input');
-  input.type = 'file'; input.accept = '.json';
-  input.onchange = e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      try {
-        const backup = JSON.parse(ev.target.result);
-        if (!backup.data) { alert('❌ Invalid backup file'); return; }
-        if (!confirm(`Restore backup from ${backup.date?.split('T')[0] || 'unknown date'}?\n\nThis will overwrite current Finance data.`)) return;
-        Object.entries(backup.data).forEach(([k, v]) => localStorage.setItem(k, JSON.stringify(v)));
-        showToast('✅ Data restored! Reloading...');
-        setTimeout(() => location.reload(), 1200);
-      } catch(e) { alert('❌ Failed to restore: ' + e.message); }
-    };
-    reader.readAsText(file);
-  };
-  document.body.appendChild(input); input.click();
-  document.body.removeChild(input);
-}
-
-function resetFinanceData() {
-  document.getElementById('fin-reset-input-1').value = '';
-  document.getElementById('fin-reset-input-2').value = '';
-  document.getElementById('fin-reset-step-1').style.display = 'block';
-  document.getElementById('fin-reset-step-2').style.display = 'none';
-  openModal('reset-finance-modal');
-}
-
-function finResetStep2() {
-  const val = document.getElementById('fin-reset-input-1').value.trim().toUpperCase();
-  if (val !== 'DELETE') { showToast('⚠️ Type DELETE to continue'); return; }
-  document.getElementById('fin-reset-step-1').style.display = 'none';
-  document.getElementById('fin-reset-step-2').style.display = 'block';
-  document.getElementById('fin-reset-input-2').value = '';
-}
-
-function doFinResetData() {
-  const val = document.getElementById('fin-reset-input-2').value.trim().toUpperCase();
-  if (val !== 'CONFIRM') { showToast('⚠️ Type CONFIRM to delete'); return; }
-  closeModal('reset-finance-modal');
-  const keys = ['fin_transactions','fin_suppliers','fin_purchases','fin_employees','fin_payroll','fin_bank','fin_assets','fin_drawings','fin_purchase_orders','fin_import_costs','fin_products'];
-  keys.forEach(k => localStorage.removeItem(k));
-  showToast('🗑️ Finance data reset! Reloading...');
-  setTimeout(() => location.reload(), 1200);
-}
-
-// Legacy PIN functions replaced by Navar username/password login
-
-// New Finance login function
-function finPreviewStore(storeId) {
-  if (!storeId) return;
-  // Try to load stored store name
-  var storedName = localStorage.getItem('fin_store_' + storeId + '_name');
-  if (storedName) {
-    var el = document.getElementById('fin-login-store');
-    var logoEl = document.getElementById('fin-logo-letter');
-    if (el) el.textContent = storedName.toUpperCase();
-    if (logoEl) logoEl.textContent = storedName[0].toUpperCase();
-  }
-}
-
 async function submitFinLogin() {
   var storeIdInput = (document.getElementById('fin-login-storeid') && document.getElementById('fin-login-storeid').value || '').trim();
   var uname = (document.getElementById('fin-login-user').value || '').trim();
@@ -1082,9 +985,8 @@ async function submitFinLogin() {
   if (storeIdInput) FIN_STORE_ID = storeIdInput;
   err.textContent = 'Signing in...';
   var loginOk = false;
-  var storeName = FIN_STORE_ID;
+  var storeName = FIN_STORE_NAME;
   try {
-    // Check navar_stores by id first, then by code
     var storeRes = await sb.from('navar_stores').select('*').eq('id', FIN_STORE_ID).single();
     if (!storeRes.data) {
       var codeRes = await sb.from('navar_stores').select('*').eq('code', FIN_STORE_ID).single();
@@ -1093,9 +995,7 @@ async function submitFinLogin() {
     if (storeRes.data) {
       var sd = storeRes.data;
       storeName = sd.name;
-      var dbUser = (sd.admin_user||'').trim();
-      var dbPass = (sd.admin_pass||'').trim();
-      if (uname === dbUser && pass === dbPass) {
+      if (uname === (sd.admin_user||'').trim() && pass === (sd.admin_pass||'').trim()) {
         loginOk = true;
       } else {
         var ur = await sb.from('navar_users').select('*').eq('store_id', FIN_STORE_ID).eq('username', uname).eq('status','active').single();
@@ -1103,25 +1003,23 @@ async function submitFinLogin() {
       }
     } else { err.textContent = 'Store not found: ' + FIN_STORE_ID; return; }
   } catch(e) {
-    // Fallback to localStorage
-    var storedUser = localStorage.getItem('navar_admin_user') || '';
-    var storedPass = localStorage.getItem('navar_admin_pass') || '';
-    storeName = localStorage.getItem('navar_store_name') || FIN_STORE_ID;
-    if ((uname === storedUser && pass === storedPass) || (uname==='admin' && pass==='admin123')) loginOk = true;
+    var su = localStorage.getItem('navar_admin_user')||'';
+    var sp = localStorage.getItem('navar_admin_pass')||'';
+    storeName = localStorage.getItem('navar_store_name')||FIN_STORE_ID;
+    if ((uname===su && pass===sp)||(uname==='admin'&&pass==='admin123')) loginOk=true;
   }
   if (loginOk) {
-    FIN_STORE_NAME = storeName;
+    FIN_STORE_NAME = storeName; FIN_STORE_ID = FIN_STORE_ID;
     localStorage.setItem('navar_store_id', FIN_STORE_ID);
     localStorage.setItem('navar_store_name', storeName);
-    localStorage.setItem('fin_logged_in', '1');
+    localStorage.setItem('fin_logged_in','1');
     err.textContent = '';
     document.getElementById('pin-screen').style.display = 'none';
     var el = document.getElementById('fin-login-store');
     var lo = document.getElementById('fin-logo-letter');
     if (el) el.textContent = storeName.toUpperCase();
-    if (lo) lo.textContent = storeName[0] ? storeName[0].toUpperCase() : 'N';
+    if (lo) lo.textContent = (storeName[0]||'N').toUpperCase();
     applyFinFeatureToggles();
-    loadCurrentPage('dashboard');
   } else {
     err.textContent = 'Wrong username or password';
     document.getElementById('fin-login-pass').value = '';
@@ -1130,21 +1028,117 @@ async function submitFinLogin() {
 }
 
 
+var FIN_STORE_ID   = localStorage.getItem('navar_store_id') || localStorage.getItem('fin_store_id') || 'default';
+var FIN_STORE_NAME = localStorage.getItem('navar_store_name') || 'Navar Finance';
+var FIN_STORE_PASS = '';
+
+function applyFinFeatureToggles() {
+  // Show the main app after login
+  var pinScreen = document.getElementById('pin-screen');
+  var mainApp = document.getElementById('main-app');
+  if (pinScreen) pinScreen.style.display = 'none';
+  if (mainApp) mainApp.style.display = 'flex';
+  // Load dashboard
+  loadCurrentPage('dashboard');
+}
+
+// lsKey adds store prefix for data isolation per store
+function lsKey(key) { return 'fin_' + FIN_STORE_ID + '_' + key; }
+function lsGet(key) { try { return JSON.parse(localStorage.getItem(lsKey(key)) || '[]'); } catch(e) { return []; } }
+function lsSet(key, data) { localStorage.setItem(lsKey(key), JSON.stringify(data)); }
+function lsGetObj(key, def) { try { return JSON.parse(localStorage.getItem(lsKey(key)) || 'null') || def; } catch(e) { return def; } }
+function lsSetObj(key, data) { localStorage.setItem(lsKey(key), JSON.stringify(data)); }
+
+
+function loadCurrentPage(page) {
+  if (page === 'dashboard') loadDashboard();
+  else if (page === 'pl') loadPL();
+  else if (page === 'balance') loadBalanceSheet();
+  else if (page === 'income') loadTransactions();
+  else if (page === 'suppliers') loadSuppliers();
+  else if (page === 'salaries') loadEmployees();
+  else if (page === 'products') loadProducts();
+  else if (page === 'purchases') loadPurchaseOrders();
+  else if (page === 'importcosts') loadImportCosts();
+  else if (page === 'cogs') loadCOGS();
+  else if (page === 'assets') loadAssets();
+  else if (page === 'liabilities') loadPayables();
+  else if (page === 'bank') loadBank();
+  else if (page === 'ledger') loadLedger();
+  else if (page === 'aging') loadAging();
+}
 
 // ═══════════════════════════════════════════
 // NAVIGATION
 // ═══════════════════════════════════════════
+const pageTitles = {
+  dashboard: ['Dashboard', 'Financial Overview'],
+  pl: ['Profit & Loss', 'Income statement for period'],
+  balance: ['Balance Sheet', 'Assets, liabilities and equity'],
+  income: ['Income & Expenses', 'All transactions'],
+  purchases: ['Purchases from Alaa', 'Track all purchases from Oman supplier'],
+  products: ['Products', 'Manage your product catalogue'],
+  importcosts: ['Import & Extra Costs', 'Customs, warehouse, transport, fuel'],
+  cogs: ['Cost Analysis', 'Full cost breakdown per box & profit margin'],
+  assets: ['Fixed Assets', 'Vehicles, equipment, furniture & more'],
+  liabilities: ['Liabilities', 'Supplier payables & owner drawings'],
+  suppliers: ['Suppliers', 'Supplier management'],
+  salaries: ['Employee Salaries', 'Payroll management'],
+  bank: ['Bank Reconciliation', 'Track cash flow'],
+  ledger: ['Customer Ledger', 'Customer account statements'],
+  aging: ['Aging Report', 'Outstanding receivables analysis'],
+};
 
-
+function showPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  event.currentTarget.classList.add('active');
+  const [title, sub] = pageTitles[page] || [page, ''];
+  document.getElementById('page-title').textContent = title;
+  document.getElementById('page-sub').textContent = sub;
+  loadCurrentPage(page);
+}
 
 // ═══════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════
+function fmt(n) { return 'QR ' + parseFloat(n || 0).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function fmtStock(totalBags, cpb) {
+  cpb = parseInt(cpb) || 4;
+  if (totalBags === 0) return cpb > 1 ? '0 boxes' : '0';
+  if (cpb <= 1) return totalBags + ' bags';
+  const boxes = Math.floor(totalBags / cpb);
+  const rem = totalBags % cpb;
+  if (boxes === 0) return `${rem} bag${rem !== 1 ? 's' : ''}`;
+  if (rem === 0) return `${boxes} box${boxes !== 1 ? 'es' : ''}`;
+  return `${boxes} box${boxes !== 1 ? 'es' : ''} + ${rem} bag${rem !== 1 ? 's' : ''}`;
+}
+function today() { return new Date().toISOString().split('T')[0]; }
+function monthStart() { const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0]; }
+function lastMonthRange() {
+  const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1);
+  const from = d.toISOString().split('T')[0];
+  const to = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
+  return { from, to };
+}
+function getDateRange(period) {
+  const now = new Date();
+  if (period === 'month') return { from: monthStart(), to: today() };
+  if (period === 'lastmonth') return lastMonthRange();
+  if (period === 'quarter') {
+    const qStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+    return { from: qStart.toISOString().split('T')[0], to: today() };
+  }
+  return { from: `${now.getFullYear()}-01-01`, to: today() };
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function openModal(id) { document.getElementById(id).classList.add('open'); }
 
 // ═══════════════════════════════════════════
 // DASHBOARD
 // ═══════════════════════════════════════════
-
+let chartRevExp = null, chartBreakdown = null;
 
 function loadDashboard() {
   const period = document.getElementById('dash-period').value;
@@ -1408,7 +1402,7 @@ function loadBalanceSheet() {
 // ═══════════════════════════════════════════
 // INCOME & EXPENSES TRANSACTIONS
 // ═══════════════════════════════════════════
-
+let currentIncomeTab = 'income';
 function switchIncomeTab(tab) {
   currentIncomeTab = tab;
   document.querySelectorAll('#page-income .tab').forEach((t, i) => t.classList.toggle('active', i === (tab === 'income' ? 0 : 1)));
@@ -1477,7 +1471,7 @@ function deleteTransaction(id) {
 // ═══════════════════════════════════════════
 // SUPPLIERS
 // ═══════════════════════════════════════════
-
+let currentSupplierTab = 'list';
 function switchSupplierTab(tab) {
   currentSupplierTab = tab;
   document.querySelectorAll('#page-suppliers .tab').forEach((t, i) => t.classList.toggle('active', i === (tab === 'list' ? 0 : 1)));
@@ -1521,7 +1515,7 @@ function openAddPurchaseModal() {
 function savePurchase() {
   const p = { id: Date.now().toString(), date: document.getElementById('pur-date').value, supplier_id: document.getElementById('pur-supplier').value, description: document.getElementById('pur-desc').value, amount: parseFloat(document.getElementById('pur-amount').value) || 0, invoice_ref: document.getElementById('pur-inv').value, status: document.getElementById('pur-status').value };
   if (!p.amount || !p.date) { alert('Fill required fields'); return; }
-  const all = lsGet('purchases'); all.unshift(p); lsSet('purchases', all);
+  const all = lsGet('purchases'); all.unshift(p); lsSet(LS.purchases, all);
   closeModal('modal-purchase'); loadPurchases();
 }
 function refreshSupplierDropdowns() {
@@ -1533,7 +1527,7 @@ function refreshSupplierDropdowns() {
 // ═══════════════════════════════════════════
 // EMPLOYEES & PAYROLL
 // ═══════════════════════════════════════════
-
+let currentSalaryTab = 'employees';
 function switchSalaryTab(tab) {
   currentSalaryTab = tab;
   document.querySelectorAll('#page-salaries .tab').forEach((t, i) => t.classList.toggle('active', i === (tab === 'employees' ? 0 : 1)));
@@ -1698,7 +1692,7 @@ function loadAging() {
 // ═══════════════════════════════════════════
 // PRODUCTS
 // ═══════════════════════════════════════════
-
+let currentProductTab = 'list';
 
 function switchProductTab(tab) {
   currentProductTab = tab;
@@ -1948,7 +1942,7 @@ function cleanDuplicateProducts() {
 }
 
 
-
+let currentPurchaseTab = 'list';
 function switchPurchaseTab(tab) {
   currentPurchaseTab = tab;
   document.querySelectorAll('#page-purchases .tab').forEach((t,i) => t.classList.toggle('active', i===(tab==='list'?0:1)));
@@ -2137,41 +2131,530 @@ async function savePurchaseOrder() {
     all.unshift(o);
     lsSet('purchase_orders', all);
 
-    // Update products stock in Supabase for each purchased line
+    // Update warehouse_stock in Supabase for each line
     let successCount = 0, errorMsgs = [];
     for (const line of poLines) {
-      if (!line.posProductId && !line.productName) continue;
+      if (!line.posProductId) { errorMsgs.push(line.productName + ': no POS ID'); continue; }
       try {
-        // Find product by id or name in this store
-        let prodRes;
-        if (line.posProductId) {
-          prodRes = await sb.from('products').select('id,stock,name').eq('id', line.posProductId).single();
+        const { data: existing, error: fetchErr } = await sb.from('warehouse_stock').select('*').eq('product_id', line.posProductId);
+        if (fetchErr) throw new Error(fetchErr.message);
+        if (existing && existing.length > 0) {
+          const newQty = (parseFloat(existing[0].quantity)||0) + line.totalCases;
+          const { error: updErr } = await sb.from('warehouse_stock').update({ quantity: newQty, last_updated: new Date().toISOString() }).eq('product_id', line.posProductId);
+          if (updErr) throw new Error(updErr.message);
         } else {
-          prodRes = await sb.from('products').select('id,stock,name').eq('store_id', FIN_STORE_ID).ilike('name', line.productName).single();
+          const { error: insErr } = await sb.from('warehouse_stock').insert({ product_id: line.posProductId, quantity: line.totalCases, last_updated: new Date().toISOString() });
+          if (insErr) throw new Error(insErr.message);
         }
-        if (prodRes.data) {
-          var newStock = (parseFloat(prodRes.data.stock)||0) + (parseFloat(line.totalCases)||parseFloat(line.qty)||0);
-          var updRes = await sb.from('products').update({stock: newStock}).eq('id', prodRes.data.id);
-          if (!updRes.error) { successCount++; }
-          else { errorMsgs.push(line.productName + ': ' + updRes.error.message); }
-        } else {
-          errorMsgs.push(line.productName + ': product not found in POS');
-        }
-      } catch(lineErr) {
-        errorMsgs.push(line.productName + ': ' + lineErr.message);
-      }
+        // Update products.stock_quantity too
+        const { data: prodRow } = await sb.from('products').select('stock_quantity').eq('product_id', line.posProductId).single();
+        if (prodRow) await sb.from('products').update({ stock_quantity: (parseFloat(prodRow.stock_quantity)||0) + line.totalCases }).eq('product_id', line.posProductId);
+        successCount++;
+      } catch(e) { errorMsgs.push(line.productName + ': ' + e.message); }
     }
-    // Also save purchase record to Supabase
+
+    closeModal('modal-purchase-order');
+
+    if (errorMsgs.length) {
+      alert('⚠️ Purchase saved but some warehouse updates failed:\n\n' + errorMsgs.join('\n'));
+    } else {
+      showToast('✅ Purchase saved! ' + successCount + ' product(s) added to warehouse');
+    }
+
+    // Refresh warehouse data from Supabase so Products page shows updated stock
     try {
-      await dbInsert('purchases', {
-        store_id: FIN_STORE_ID,
-        supplier_name: document.getElementById('po-supplier') ? document.getElementById('po-supplier').value : '',
-        items: JSON.stringify(poLines),
-        total_amount: poLines.reduce((a,l) => a+(parseFloat(l.totalAmount)||0), 0),
-        purchase_date: document.getElementById('po-date') ? document.getElementById('po-date').value : new Date().toISOString().slice(0,10),
-        notes: document.getElementById('po-inv') ? document.getElementById('po-inv').value : ''
-      });
-    } catch(e) { console.warn('Purchase Supabase save error:', e.message); }
-    if (successCount > 0) { showToast('✅ Stock updated for ' + successCount + ' product(s)'); }
-    if (errorMsgs.length) { showToast('⚠️ ' + errorMsgs.join(', ')); }
-    >
+      const { data: freshWH } = await sb.from('warehouse_stock').select('*');
+      if (freshWH) posData.warehouse_stock = freshWH;
+      const { data: freshTruck } = await sb.from('inventory').select('*');
+      if (freshTruck) posData.inventory = freshTruck;
+    } catch(e) { console.warn('Warehouse refresh failed:', e); }
+
+    loadPurchaseOrders();
+
+  } finally {
+    _poSaving = false;
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '💾 Save & Update Warehouse'; }
+  }
+}
+
+function printPurchaseInvoice() {
+  if (!poLines.length) { alert('Add products first'); return; }
+  _doPrintPO({ invoice_ref: document.getElementById('po-inv').value||'—', date: document.getElementById('po-date').value, status: document.getElementById('po-status').value, notes: document.getElementById('po-notes').value, lines: poLines, grand_total: poLines.reduce(function(a,l){return a+l.total;},0) });
+}
+function printSavedPO(id) {
+  const o = lsGet('purchase_orders').find(function(x){return x.id===id;});
+  if (!o) return;
+  const lines = o.lines || [{ productName: o.product, qty: o.qty, totalCases: o.total_cases||o.qty, price: o.unit_price||0, total: o.total||0 }];
+  _doPrintPO(Object.assign({},o,{lines:lines}));
+}
+function _doPrintPO(o) {
+  const grandTotal = o.grand_total || o.lines.reduce(function(a,l){return a+l.total;},0);
+  const win = window.open('','_blank');
+  const rows = o.lines.map(function(l,i){
+    return '<tr><td>'+(i+1)+'</td><td>'+(l.productName||l.product||'—')+'</td><td style="text-align:center;">'+l.qty+'</td><td style="text-align:center;">'+(l.totalCases||l.total_cases||l.qty)+'</td><td style="text-align:right;">QR '+parseFloat(l.price||l.unit_price||0).toFixed(2)+'</td><td style="text-align:right;font-weight:700;">QR '+parseFloat(l.total||0).toFixed(2)+'</td></tr>';
+  }).join('');
+  const statusClass = o.status||'pending';
+  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Purchase Invoice '+o.invoice_ref+'</title><style>*{box-sizing:border-box;margin:0;padding:0;font-family:Segoe UI,Arial,sans-serif;}body{padding:32px;color:#111;font-size:13px;}.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:3px solid #1a237e;}.co{font-size:20px;font-weight:900;color:#1a237e;}.co-sub{font-size:11px;color:#555;margin-top:2px;}.inv-title{font-size:22px;font-weight:900;color:#1a237e;text-align:right;}.inv-ref{font-size:13px;color:#555;text-align:right;margin-top:4px;}.meta{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;padding:14px;background:#f8f9ff;border-radius:8px;border:1px solid #dde1f0;}.ml{font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.5px;}.mv{font-size:13px;font-weight:600;color:#111;margin-top:2px;}table{width:100%;border-collapse:collapse;margin-bottom:20px;}th{background:#1a237e;color:#fff;padding:10px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;text-align:left;}td{padding:10px 12px;border-bottom:1px solid #eee;font-size:13px;}tr:nth-child(even) td{background:#f8f9ff;}.tot td{font-weight:900;font-size:15px;color:#1a237e;background:#e8f5e9!important;border-top:2px solid #1a237e;}.footer{text-align:center;font-size:11px;color:#aaa;margin-top:20px;padding-top:12px;border-top:1px solid #eee;}.badge{display:inline-block;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;}.paid{background:#e8f5e9;color:#1b5e20;}.pending{background:#ffebee;color:#b71c1c;}.partial{background:#fff8e1;color:#f57f17;}@media print{button{display:none!important;}}</style></head><body>');
+  win.document.write('<div class="hdr"><div><div class="co">NEW FAIR WAY TRADING</div><div class="co-sub">نيو فيرفي تريدينغ — Doha, Qatar</div></div><div><div class="inv-title">PURCHASE INVOICE</div><div class="inv-ref"># '+(o.invoice_ref||'—')+'</div></div></div>');
+  win.document.write('<div class="meta"><div><div class="ml">Supplier</div><div class="mv">Alaa Trading — Oman</div></div><div><div class="ml">Date</div><div class="mv">'+o.date+'</div></div><div><div class="ml">Payment Status</div><div class="mv"><span class="badge '+statusClass+'">'+(o.status||'—').toUpperCase()+'</span></div></div><div><div class="ml">Notes</div><div class="mv">'+(o.notes||'—')+'</div></div></div>');
+  win.document.write('<table><thead><tr><th>#</th><th>Product</th><th style="text-align:center;">Boxes</th><th style="text-align:center;">Total Bags</th><th style="text-align:right;">Price/Box</th><th style="text-align:right;">Amount</th></tr></thead><tbody>'+rows+'</tbody><tfoot><tr class="tot"><td colspan="5" style="text-align:right;padding:12px;">TOTAL AMOUNT</td><td style="text-align:right;padding:12px;">QR '+grandTotal.toFixed(2)+'</td></tr></tfoot></table>');
+  win.document.write('<div class="footer">New Fair Way Trading — Doha, Qatar | Generated '+new Date().toLocaleString()+'</div>');
+  win.document.write('<div style="text-align:center;margin-top:16px;"><button onclick="window.print()" style="background:#1a237e;color:#fff;border:none;padding:10px 28px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;">🖨️ Print</button></div>');
+  win.document.write('</body></html>');
+  win.document.close();
+}
+
+function markPOPaid(id) {
+  const all = lsGet('purchase_orders');
+  const idx = all.findIndex(function(o){return o.id===id;});
+  if (idx >= 0) { all[idx].status = 'paid'; lsSet('purchase_orders', all); }
+  loadPurchaseOrders();
+}
+function deletePO(id) {
+  if (!confirm('Delete this purchase?')) return;
+  lsSet('purchase_orders', lsGet('purchase_orders').filter(function(o){return o.id!==id;}));
+  loadPurchaseOrders();
+}
+
+// Remove duplicate purchase orders (same invoice_ref + date, or same id)
+function cleanDuplicatePurchases() {
+  const all = lsGet('purchase_orders');
+  const seenIds = new Set();
+  const seenRefs = new Set();
+  const clean = [];
+  // Sort newest first so we keep the latest save
+  const sorted = [...all].sort((a,b) => b.id.localeCompare(a.id));
+  sorted.forEach(o => {
+    // Deduplicate by id
+    if (seenIds.has(o.id)) return;
+    seenIds.add(o.id);
+    // Deduplicate by invoice_ref + date (keep first/latest)
+    if (o.invoice_ref && o.invoice_ref.trim()) {
+      const refKey = o.invoice_ref.trim().toLowerCase() + '|' + o.date;
+      if (seenRefs.has(refKey)) return;
+      seenRefs.add(refKey);
+    }
+    clean.push(o);
+  });
+  const removed = all.length - clean.length;
+  lsSet('purchase_orders', clean);
+  loadPurchaseOrders();
+  showToast(removed > 0 ? ('🧹 Removed ' + removed + ' duplicate purchase(s)!') : '✅ No duplicates found.');
+}
+
+// Repair old broken purchases (reapply warehouse stock using correct pos_id from fin_products)
+async function repairOldPurchases() {
+  if (!confirm('⚠️ This will RECALCULATE warehouse stock from scratch based on your purchase records.\n\nIt will SET the correct stock (not add on top).\n\nContinue?')) return;
+
+  const finProds = lsGet('products');
+  // Build maps: pos_id by name, and cpb by pos_id
+  const posIdByName = {};
+  const cpbByPosId = {};
+  finProds.forEach(p => {
+    if (p.pos_id && parseInt(p.pos_id) <= 2147483647) {
+      posIdByName[p.name.toLowerCase().trim()] = p.pos_id;
+      cpbByPosId[p.pos_id] = parseInt(p.cases_per_box) || 4;
+    }
+  });
+
+  // First deduplicate purchases
+  const allOrders = lsGet('purchase_orders');
+  const seenRefs = new Set();
+  const deduped = [];
+  [...allOrders].sort((a,b)=>b.id.localeCompare(a.id)).forEach(o => {
+    if (o.invoice_ref && o.invoice_ref.trim()) {
+      const key = o.invoice_ref.trim().toLowerCase() + '|' + o.date;
+      if (seenRefs.has(key)) return;
+      seenRefs.add(key);
+    }
+    deduped.push(o);
+  });
+  lsSet('purchase_orders', deduped);
+
+  // Tally total BAGS purchased per product — ALWAYS recalculate from qty × cpb
+  // Never trust stored totalCases (may be inflated from old bugs)
+  const totalBagsByProduct = {};
+  for (const o of deduped) {
+    const lines = o.lines || [{ productName: o.product, qty: o.qty, posProductId: o.pos_product_id }];
+    for (const line of lines) {
+      let pid = parseInt(line.posProductId);
+      if (!pid || pid > 2147483647) pid = posIdByName[(line.productName||'').toLowerCase().trim()];
+      if (!pid || pid > 2147483647) continue;
+      const cpb = cpbByPosId[pid] || 4;
+      const boxes = parseFloat(line.qty) || 0;
+      const bags = boxes * cpb; // Always recalculate — never trust stored totalCases
+      totalBagsByProduct[pid] = (totalBagsByProduct[pid] || 0) + bags;
+    }
+  }
+
+  // Show what we calculated before saving
+  const preview = Object.entries(totalBagsByProduct).map(([pid, bags]) => {
+    const prod = finProds.find(p => p.pos_id == pid);
+    const cpb = cpbByPosId[pid] || 4;
+    const boxes = Math.floor(bags / cpb);
+    return (prod ? prod.name : 'Product #'+pid) + ': ' + boxes + ' boxes (' + bags + ' bags)';
+  }).join('\n');
+
+  if (!confirm('Ready to set these values in warehouse:\n\n' + preview + '\n\nProceed?')) return;
+
+  // SET warehouse_stock — overwrite with correct values
+  let fixed = 0, errors = [];
+  for (const [pidStr, bags] of Object.entries(totalBagsByProduct)) {
+    const pid = parseInt(pidStr);
+    try {
+      const { data: ex } = await sb.from('warehouse_stock').select('id').eq('product_id', pid);
+      if (ex && ex.length > 0) {
+        await sb.from('warehouse_stock').update({ quantity: bags, last_updated: new Date().toISOString() }).eq('product_id', pid);
+      } else {
+        await sb.from('warehouse_stock').insert({ product_id: pid, quantity: bags, last_updated: new Date().toISOString() });
+      }
+      await sb.from('products').update({ stock_quantity: bags }).eq('product_id', pid);
+      fixed++;
+    } catch(e) { errors.push('Product ' + pid + ': ' + e.message); }
+  }
+
+  await syncData();
+  if (errors.length) alert('Done! ' + fixed + ' products fixed.\n\nErrors:\n' + errors.join('\n'));
+  else showToast('✅ Warehouse recalculated! ' + fixed + ' product(s) set correctly.');
+}
+
+
+// ═══════════════════════════════════════════
+// IMPORT & EXTRA COSTS
+// ═══════════════════════════════════════════
+const COST_ICONS = { Customs:'🛃', Warehouse:'🏭', Loading:'👷', Transport:'🚛', Fuel:'⛽', Other:'📦' };
+const COST_COLORS = { Customs:'red', Warehouse:'navy', Loading:'gold', Transport:'green', Fuel:'red', Other:'navy' };
+
+function loadImportCosts() {
+  const all = lsGet('import_costs');
+  const from = document.getElementById('ic-from')?.value || '';
+  const to = document.getElementById('ic-to')?.value || '';
+  const cat = document.getElementById('ic-cat')?.value || '';
+  let filtered = all.filter(c => (!from||c.date>=from) && (!to||c.date<=to) && (!cat||c.category===cat));
+  // Totals by category
+  const totals = { Customs:0, Warehouse:0, Loading:0, Transport:0, Fuel:0, Other:0 };
+  all.forEach(c => { totals[c.category] = (totals[c.category]||0) + c.amount; });
+  const total = Object.values(totals).reduce((a,v)=>a+v,0);
+  document.getElementById('cost-customs').textContent = fmt(totals.Customs);
+  document.getElementById('cost-warehouse').textContent = fmt(totals.Warehouse);
+  document.getElementById('cost-loading').textContent = fmt(totals.Loading);
+  document.getElementById('cost-transport').textContent = fmt(totals.Transport);
+  document.getElementById('cost-fuel').textContent = fmt(totals.Fuel);
+  document.getElementById('cost-total').textContent = fmt(total);
+  document.getElementById('import-cost-list').innerHTML = filtered.sort((a,b)=>b.date.localeCompare(a.date)).map(c => `
+    <tr>
+      <td>${c.date}</td>
+      <td><span class="badge badge-${COST_COLORS[c.category]||'navy'}">${COST_ICONS[c.category]||'📦'} ${c.category}</span></td>
+      <td>${c.description}</td>
+      <td style="font-weight:700;color:var(--red);">${fmt(c.amount)}</td>
+      <td>${c.reference||'—'}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteImportCost('${c.id}')">✕</button></td>
+    </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;padding:20px;color:#999;">No costs added</td></tr>';
+}
+
+function openAddImportCostModal() {
+  document.getElementById('ic-date').value = today();
+  document.getElementById('ic-amount').value = '';
+  document.getElementById('ic-description').value = '';
+  document.getElementById('ic-reference').value = '';
+  openModal('modal-import-cost');
+}
+
+function saveImportCost() {
+  const c = {
+    id: Date.now().toString(),
+    date: document.getElementById('ic-date').value,
+    category: document.getElementById('ic-category').value,
+    amount: parseFloat(document.getElementById('ic-amount').value) || 0,
+    description: document.getElementById('ic-description').value,
+    reference: document.getElementById('ic-reference').value
+  };
+  if (!c.amount) { alert('Enter amount'); return; }
+  const all = lsGet('import_costs'); all.unshift(c); lsSet('import_costs', all);
+  closeModal('modal-import-cost'); loadImportCosts();
+}
+
+function deleteImportCost(id) {
+  if (!confirm('Delete?')) return;
+  lsSet('import_costs', lsGet('import_costs').filter(c => c.id !== id));
+  loadImportCosts();
+}
+
+// ═══════════════════════════════════════════
+// COST ANALYSIS (COGS)
+// ═══════════════════════════════════════════
+function loadCOGS() {
+  const from = document.getElementById('cogs-from').value || monthStart();
+  const to = document.getElementById('cogs-to').value || today();
+  const invs = posData.invoices.filter(i => i.date >= from && i.date <= to);
+  const revenue = invs.reduce((a,i) => a+(i.total_amount||0), 0);
+  const purchaseCost = lsGet('purchase_orders').filter(o => o.date>=from && o.date<=to).reduce((a,o)=>a+o.total,0);
+  const importCosts = lsGet('import_costs').filter(c => c.date>=from && c.date<=to).reduce((a,c)=>a+c.amount,0);
+  const costsByCategory = {};
+  lsGet('import_costs').filter(c=>c.date>=from&&c.date<=to).forEach(c=>{
+    costsByCategory[c.category] = (costsByCategory[c.category]||0)+c.amount;
+  });
+  const totalCOGS = purchaseCost + importCosts;
+  const grossProfit = revenue - totalCOGS;
+  const salaries = lsGet('payroll').filter(p=>p.month>=from.slice(0,7)&&p.month<=to.slice(0,7)).reduce((a,p)=>a+p.net_pay,0);
+  const otherExp = lsGet('transactions').filter(t=>t.type==='expense'&&t.date>=from&&t.date<=to).reduce((a,t)=>a+t.amount,0);
+  const netProfit = grossProfit - salaries - otherExp;
+  const margin = revenue > 0 ? ((grossProfit/revenue)*100).toFixed(1) : 0;
+
+  document.getElementById('cogs-revenue').textContent = fmt(revenue);
+  document.getElementById('cogs-purchase').textContent = fmt(purchaseCost);
+  document.getElementById('cogs-import').textContent = fmt(importCosts);
+  document.getElementById('cogs-gross').textContent = fmt(grossProfit);
+  document.getElementById('cogs-gross').style.color = grossProfit>=0?'var(--green)':'var(--red)';
+
+  document.getElementById('cogs-content').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div class="card">
+        <div class="card-header"><div class="card-title">📊 Full Cost Breakdown</div></div>
+        <div style="padding:20px;">
+          <table style="font-size:13px;">
+            <tr style="font-weight:700;color:var(--green);"><td>💵 Revenue</td><td style="text-align:right;">${fmt(revenue)}</td></tr>
+            <tr><td colspan="2" style="padding:8px 0;font-weight:700;color:var(--text2);font-size:11px;">COST OF GOODS</td></tr>
+            <tr><td>🛒 Purchases from Alaa</td><td style="text-align:right;color:var(--red);">- ${fmt(purchaseCost)}</td></tr>
+            <tr><td>🛃 Qatar Customs</td><td style="text-align:right;color:var(--red);">- ${fmt(costsByCategory.Customs||0)}</td></tr>
+            <tr><td>🏭 Warehouse Rent</td><td style="text-align:right;color:var(--red);">- ${fmt(costsByCategory.Warehouse||0)}</td></tr>
+            <tr><td>👷 Loading/Unloading</td><td style="text-align:right;color:var(--red);">- ${fmt(costsByCategory.Loading||0)}</td></tr>
+            <tr><td>🚛 Transport/Freight</td><td style="text-align:right;color:var(--red);">- ${fmt(costsByCategory.Transport||0)}</td></tr>
+            <tr><td>⛽ Truck Fuel</td><td style="text-align:right;color:var(--red);">- ${fmt(costsByCategory.Fuel||0)}</td></tr>
+            <tr style="font-weight:800;border-top:2px solid var(--border);"><td style="padding:8px 0;">Gross Profit (${margin}%)</td><td style="text-align:right;color:${grossProfit>=0?'var(--green)':'var(--red)'};">${fmt(grossProfit)}</td></tr>
+            <tr><td colspan="2" style="padding:8px 0;font-weight:700;color:var(--text2);font-size:11px;">OPERATING EXPENSES</td></tr>
+            <tr><td>👥 Salaries</td><td style="text-align:right;color:var(--red);">- ${fmt(salaries)}</td></tr>
+            <tr><td>📋 Other Expenses</td><td style="text-align:right;color:var(--red);">- ${fmt(otherExp)}</td></tr>
+            <tr style="font-weight:900;font-size:15px;border-top:2px solid var(--navy);background:${netProfit>=0?'#e8f5e9':'#ffebee'};"><td style="padding:10px 0;">Net Profit</td><td style="text-align:right;color:${netProfit>=0?'var(--green)':'var(--red)'};">${fmt(netProfit)}</td></tr>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">📦 Cost Per Box Analysis</div></div>
+        <div style="padding:20px;">
+          ${(() => {
+            const orders = lsGet('purchase_orders').filter(o=>o.date>=from&&o.date<=to);
+            const totalBoxes = orders.reduce((a,o)=>a+(o.qty||0),0);
+            if (!totalBoxes) return '<div class="empty"><div class="empty-icon">📦</div><div>No purchases in this period</div></div>';
+            const totalBagsAll = orders.reduce((a,o)=>a+(o.total_cases||(o.qty*(o.cases_per_box||1))),0);
+            const costPerBox = totalCOGS / totalBoxes;
+            const costPerBag = totalBagsAll > 0 ? totalCOGS / totalBagsAll : 0;
+            return `
+              <table style="font-size:13px;">
+                <tr><td>📦 Total Boxes Purchased</td><td style="text-align:right;font-weight:700;">${totalBoxes} boxes</td></tr>
+                <tr><td>🛍 Total Bags Purchased</td><td style="text-align:right;font-weight:700;">${totalBagsAll} bags</td></tr>
+                <tr><td>🛒 Purchase Cost/Box</td><td style="text-align:right;color:var(--red);">${fmt(purchaseCost/totalBoxes)}</td></tr>
+                <tr><td>🚢 Import Cost/Box</td><td style="text-align:right;color:var(--red);">${fmt(importCosts/totalBoxes)}</td></tr>
+                <tr style="font-weight:800;border-top:2px solid var(--border);"><td style="padding:8px 0;">Total Cost/Box</td><td style="text-align:right;color:var(--navy);">${fmt(costPerBox)}</td></tr>
+                <tr><td>💰 Total Cost/Bag</td><td style="text-align:right;color:var(--navy);">${fmt(costPerBag)}</td></tr>
+                <tr style="color:var(--green);"><td>💵 Revenue/Box (avg)</td><td style="text-align:right;font-weight:700;">${fmt(totalBoxes>0?revenue/totalBoxes:0)}</td></tr>
+                <tr style="font-weight:800;color:${(revenue-totalCOGS)/totalBoxes>=0?'green':'red'};"><td>📈 Profit/Box</td><td style="text-align:right;">${fmt(totalBoxes>0?(revenue-totalCOGS)/totalBoxes:0)}</td></tr>
+              </table>`;
+          })()}
+        </div>
+      </div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════
+// FIXED ASSETS
+// ═══════════════════════════════════════════
+const ASSET_ICONS = { Vehicle:'🚛', Equipment:'🛠️', Furniture:'🪑', Cash:'💰', Other:'📦' };
+
+function calcCurrentValue(asset) {
+  const years = (new Date() - new Date(asset.purchase_date)) / (1000 * 60 * 60 * 24 * 365);
+  const dep = Math.min(100, (asset.dep_rate || 20) * years) / 100;
+  return Math.max(0, asset.purchase_value * (1 - dep));
+}
+
+function calcDepreciation(asset) {
+  const years = (new Date() - new Date(asset.purchase_date)) / (1000 * 60 * 60 * 24 * 365);
+  const thisYear = Math.min(1, years < 1 ? years : 1) * (asset.dep_rate / 100) * asset.purchase_value;
+  const accumulated = (asset.purchase_value - calcCurrentValue(asset));
+  return { thisYear, accumulated };
+}
+
+let currentAssetTab = 'list';
+function switchAssetTab(tab) {
+  currentAssetTab = tab;
+  document.querySelectorAll('#page-assets .tab').forEach((t, i) => t.classList.toggle('active', i === (tab === 'list' ? 0 : 1)));
+  document.getElementById('asset-list-card').style.display = tab === 'list' ? '' : 'none';
+  document.getElementById('depreciation-card').style.display = tab === 'depreciation' ? '' : 'none';
+  if (tab === 'list') loadAssets(); else loadDepreciation();
+}
+
+function loadAssets() {
+  const assets = lsGet('assets');
+  const filter = document.getElementById('asset-filter').value;
+  const filtered = filter ? assets.filter(a => a.category === filter) : assets;
+  // Totals by category
+  const bycat = { Vehicle: 0, Equipment: 0, Furniture: 0, Cash: 0, Other: 0 };
+  assets.forEach(a => { if (a.status === 'active') bycat[a.category] = (bycat[a.category] || 0) + calcCurrentValue(a); });
+  const total = Object.values(bycat).reduce((a, v) => a + v, 0);
+  document.getElementById('ast-vehicle').textContent = fmt(bycat.Vehicle);
+  document.getElementById('ast-equipment').textContent = fmt(bycat.Equipment);
+  document.getElementById('ast-furniture').textContent = fmt(bycat.Furniture);
+  document.getElementById('ast-total').textContent = fmt(total);
+  document.getElementById('asset-list').innerHTML = filtered.map(a => {
+    const current = calcCurrentValue(a);
+    const dep = a.purchase_value - current;
+    return `<tr>
+      <td><strong>${ASSET_ICONS[a.category]||'📦'} ${a.name}</strong><br><small style="color:var(--text2);">${a.notes||''}</small></td>
+      <td><span class="badge badge-blue">${a.category}</span></td>
+      <td>${a.purchase_date}</td>
+      <td>${fmt(a.purchase_value)}</td>
+      <td style="font-weight:700;color:var(--navy);">${fmt(current)}</td>
+      <td style="color:var(--red);">- ${fmt(dep)}</td>
+      <td><span class="badge badge-${a.status === 'active' ? 'green' : 'red'}">${a.status}</span></td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteAsset('${a.id}')">✕</button></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="8" style="text-align:center;padding:20px;color:#999;">No assets added</td></tr>';
+}
+
+function loadDepreciation() {
+  const assets = lsGet('assets').filter(a => a.status === 'active');
+  document.getElementById('depreciation-list').innerHTML = assets.map(a => {
+    const { thisYear, accumulated } = calcDepreciation(a);
+    const nbv = calcCurrentValue(a);
+    return `<tr>
+      <td>${ASSET_ICONS[a.category]||'📦'} ${a.name}</td>
+      <td>${fmt(a.purchase_value)}</td>
+      <td>${a.dep_rate}%</td>
+      <td style="color:var(--red);">${fmt(thisYear)}</td>
+      <td style="color:var(--red);">${fmt(accumulated)}</td>
+      <td style="font-weight:700;color:var(--navy);">${fmt(nbv)}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="6" style="text-align:center;padding:20px;color:#999;">No active assets</td></tr>';
+}
+
+function openAddAssetModal() {
+  document.getElementById('ast-date').value = today();
+  document.getElementById('ast-name').value = '';
+  document.getElementById('ast-value').value = '';
+  document.getElementById('ast-notes').value = '';
+  openModal('modal-asset');
+}
+
+function saveAsset() {
+  const a = {
+    id: Date.now().toString(),
+    name: document.getElementById('ast-name').value,
+    category: document.getElementById('ast-category').value,
+    purchase_date: document.getElementById('ast-date').value,
+    purchase_value: parseFloat(document.getElementById('ast-value').value) || 0,
+    dep_rate: parseFloat(document.getElementById('ast-dep-rate').value) || 20,
+    status: document.getElementById('ast-status').value,
+    notes: document.getElementById('ast-notes').value
+  };
+  if (!a.name || !a.purchase_value) { alert('Fill required fields'); return; }
+  const all = lsGet('assets'); all.push(a); lsSet('assets', all);
+  closeModal('modal-asset'); loadAssets();
+}
+
+function deleteAsset(id) {
+  if (!confirm('Delete this asset?')) return;
+  lsSet('assets', lsGet('assets').filter(a => a.id !== id)); loadAssets();
+}
+
+// ═══════════════════════════════════════════
+// LIABILITIES
+// ═══════════════════════════════════════════
+let currentLiabTab = 'payables';
+
+function switchLiabTab(tab) {
+  currentLiabTab = tab;
+  document.querySelectorAll('#page-liabilities .tab').forEach((t, i) => t.classList.toggle('active', i === (tab === 'payables' ? 0 : 1)));
+  document.getElementById('payables-card').style.display = tab === 'payables' ? '' : 'none';
+  document.getElementById('drawings-card').style.display = tab === 'drawings' ? '' : 'none';
+  document.getElementById('liab-add-btn').textContent = tab === 'payables' ? '+ Mark as Paid' : '+ Add Drawing';
+  document.getElementById('liab-add-btn').onclick = tab === 'payables' ? null : openAddDrawingModal;
+  if (tab === 'payables') loadPayables(); else loadDrawings();
+}
+
+function loadPayables() {
+  const purchases = getPurchaseOrders().filter(p => p.status === 'pending' || p.status === 'partial');
+  const totalPayables = purchases.reduce((a, p) => a + p.amount, 0);
+  const drawings = lsGet('drawings');
+  const totalDrawings = drawings.reduce((a, d) => a + d.amount, 0);
+  document.getElementById('liab-payables').textContent = fmt(totalPayables);
+  document.getElementById('liab-drawings').textContent = fmt(totalDrawings);
+  document.getElementById('liab-total').textContent = fmt(totalPayables + totalDrawings);
+  document.getElementById('payables-list').innerHTML = purchases.map(p => `
+    <tr>
+      <td>${p.date}</td>
+      <td>Alaa Trading — Oman</td>
+      <td>${p.description || p.invoice_ref || '—'}</td>
+      <td style="font-weight:700;color:var(--red);">${fmt(p.amount)}</td>
+      <td>—</td>
+      <td><span class="badge badge-${p.status === 'pending' ? 'red' : 'gold'}">${p.status}</span></td>
+      <td><button class="btn btn-success btn-sm" onclick="markPOPaid('${p.id}')">✅ Paid</button></td>
+    </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;padding:20px;color:#999;">No pending payables</td></tr>';
+}
+
+function markPurchasePaid(id) {
+  const all = lsGet('purchases');
+  const idx = all.findIndex(p => p.id === id);
+  if (idx >= 0) { all[idx].status = 'paid'; lsSet(LS.purchases, all); }
+  loadPayables();
+}
+
+function loadDrawings() {
+  const drawings = lsGet('drawings');
+  document.getElementById('drawings-list').innerHTML = drawings.map(d => `
+    <tr>
+      <td>${d.date}</td>
+      <td>${d.description}</td>
+      <td style="font-weight:700;color:var(--gold);">${fmt(d.amount)}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteDrawing('${d.id}')">✕</button></td>
+    </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;padding:20px;color:#999;">No drawings recorded</td></tr>';
+}
+
+function openAddDrawingModal() {
+  document.getElementById('drw-date').value = today();
+  document.getElementById('drw-amount').value = '';
+  document.getElementById('drw-desc').value = '';
+  openModal('modal-drawing');
+}
+
+function saveDrawing() {
+  const d = {
+    id: Date.now().toString(),
+    date: document.getElementById('drw-date').value,
+    amount: parseFloat(document.getElementById('drw-amount').value) || 0,
+    description: document.getElementById('drw-desc').value
+  };
+  if (!d.amount) { alert('Enter amount'); return; }
+  const all = lsGet('drawings'); all.unshift(d); lsSet('drawings', all);
+  closeModal('modal-drawing'); loadDrawings();
+}
+
+function deleteDrawing(id) {
+  if (!confirm('Delete?')) return;
+  lsSet('drawings', lsGet('drawings').filter(d => d.id !== id)); loadDrawings();
+}
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+async function init() {
+  // Set default dates
+  document.getElementById('pl-from').value = monthStart();
+  document.getElementById('pl-to').value = today();
+  document.getElementById('bs-date').value = today();
+  document.getElementById('inc-from').value = monthStart();
+  document.getElementById('inc-to').value = today();
+  document.getElementById('aging-date').value = today();
+  document.getElementById('ledger-from').value = monthStart();
+  document.getElementById('ledger-to').value = today();
+  document.getElementById('pur-from').value = monthStart();
+  document.getElementById('pur-to').value = today();
+  document.getElementById('ic-from').value = monthStart();
+  document.getElementById('ic-to').value = today();
+  document.getElementById('cogs-from').value = monthStart();
+  document.getElementById('cogs-to').value = today();
+  // Sync data then reload active page
+  await syncData();
+}
+init();
+
+</script>
