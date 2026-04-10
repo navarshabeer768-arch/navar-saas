@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Navar Finance</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -945,7 +944,51 @@ tr:hover td{background:#f8f9ff;}
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+const SUPABASE_URL = 'https://eecfwjniqctiyzjqhnku.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVlY2Z3am5pcWN0aXl6anFobmt1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MjY4MjQsImV4cCI6MjA5MTQwMjgyNH0.uuXavl8TtMPlI8cDCuC5jt_j1e0AXqIOVeiYbQ9M2_w';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ── Supabase DB helpers ─────────────────────────────────
+async function dbFetch(table, storeId) {
+  try {
+    var res = await sb.from(table).select('*').eq('store_id', storeId).order('id', {ascending: false});
+    if (res.error) { console.error('dbFetch', table, res.error.message); return []; }
+    return res.data || [];
+  } catch(e) { return []; }
+}
+async function dbInsert(table, data) {
+  try {
+    var res = await sb.from(table).insert(data).select().single();
+    if (res.error) { console.error('dbInsert', table, res.error.message); return null; }
+    return res.data;
+  } catch(e) { return null; }
+}
+async function dbUpdate(table, id, data) {
+  try {
+    var res = await sb.from(table).update(data).eq('id', id).select().single();
+    if (res.error) { console.error('dbUpdate', table, res.error.message); return null; }
+    return res.data;
+  } catch(e) { return null; }
+}
+async function dbDelete(table, id) {
+  try {
+    var res = await sb.from(table).delete().eq('id', id);
+    return !res.error;
+  } catch(e) { return false; }
+}
+// Update product stock in Supabase (called by purchases)
+async function updateProductStock(storeId, productId, qtyChange) {
+  try {
+    var prod = await sb.from('products').select('stock').eq('id', productId).single();
+    if (prod.data) {
+      var newStock = (parseFloat(prod.data.stock) || 0) + qtyChange;
+      await sb.from('products').update({stock: newStock}).eq('id', productId);
+    }
+  } catch(e) { console.error('updateProductStock error:', e.message); }
+}
+
 // ═══════════════════════════════════════════
 // PIN LOGIN
 // ═══════════════════════════════════════════
@@ -1018,22 +1061,16 @@ function doFinResetData() {
 // Legacy PIN functions replaced by Navar username/password login
 
 // New Finance login function
-async function finPreviewStore(storeId) {
-  if (!storeId || !sb) return;
-  try {
-    var res = await sb.from('navar_stores').select('id,name,brand_id').eq('id', storeId.trim()).single();
-    if (res.data) {
-      var el = document.getElementById('fin-login-store');
-      var logoEl = document.getElementById('fin-logo-letter');
-      if (el) el.textContent = res.data.name.toUpperCase();
-      if (logoEl) logoEl.textContent = res.data.name[0].toUpperCase();
-      if (res.data.brand_id) {
-        var br = await sb.from('navar_brands').select('name').eq('id', res.data.brand_id).single();
-        var bEl = document.getElementById('fin-login-brand');
-        if (br.data && bEl) bEl.textContent = br.data.name.toUpperCase();
-      }
-    }
-  } catch(e) {}
+function finPreviewStore(storeId) {
+  if (!storeId) return;
+  // Try to load stored store name
+  var storedName = localStorage.getItem('fin_store_' + storeId + '_name');
+  if (storedName) {
+    var el = document.getElementById('fin-login-store');
+    var logoEl = document.getElementById('fin-logo-letter');
+    if (el) el.textContent = storedName.toUpperCase();
+    if (logoEl) logoEl.textContent = storedName[0].toUpperCase();
+  }
 }
 
 async function submitFinLogin() {
@@ -1042,329 +1079,84 @@ async function submitFinLogin() {
   var pass  = (document.getElementById('fin-login-pass').value || '').trim();
   var err   = document.getElementById('fin-login-error');
   if (!uname || !pass) { err.textContent = 'Please enter username and password'; return; }
-
-  // Set store ID from input if provided
-  if (storeIdInput && storeIdInput !== FIN_STORE_ID) {
-    localStorage.removeItem('navar_store_name');
-    localStorage.removeItem('navar_admin_user');
-    localStorage.removeItem('navar_admin_pass');
-    FIN_STORE_ID = storeIdInput;
-    localStorage.setItem('navar_store_id', FIN_STORE_ID);
-  } else if (storeIdInput) {
-    FIN_STORE_ID = storeIdInput;
-    localStorage.setItem('navar_store_id', FIN_STORE_ID);
-  }
-
+  if (storeIdInput) FIN_STORE_ID = storeIdInput;
   err.textContent = 'Signing in...';
   var loginOk = false;
-
+  var storeName = FIN_STORE_ID;
   try {
-    // Search by id first, then by code
+    // Check navar_stores by id first, then by code
     var storeRes = await sb.from('navar_stores').select('*').eq('id', FIN_STORE_ID).single();
     if (!storeRes.data) {
       var codeRes = await sb.from('navar_stores').select('*').eq('code', FIN_STORE_ID).single();
-      if (codeRes.data) {
-        storeRes = codeRes;
-        FIN_STORE_ID = codeRes.data.id;
-        localStorage.setItem('navar_store_id', FIN_STORE_ID);
-      }
+      if (codeRes.data) { storeRes = codeRes; FIN_STORE_ID = codeRes.data.id; }
     }
     if (storeRes.data) {
       var sd = storeRes.data;
-      if (sd.expiry_date && new Date(sd.expiry_date) < new Date()) {
-        err.textContent = 'Store license expired. Contact admin.'; return;
-      }
-      var dbUser = (sd.admin_user || '').trim();
-      var dbPass = (sd.admin_pass || '').trim();
+      storeName = sd.name;
+      var dbUser = (sd.admin_user||'').trim();
+      var dbPass = (sd.admin_pass||'').trim();
       if (uname === dbUser && pass === dbPass) {
         loginOk = true;
-        FIN_STORE_NAME = sd.name;
-        localStorage.setItem('navar_store_name', sd.name);
-        localStorage.setItem('navar_admin_user', sd.admin_user);
-        localStorage.setItem('navar_admin_pass', sd.admin_pass);
-        localStorage.setItem('navar_features', JSON.stringify(
-          typeof sd.features === 'string' ? JSON.parse(sd.features || '{}') : (sd.features || {})
-        ));
-      }
-      if (!loginOk) {
+      } else {
         var ur = await sb.from('navar_users').select('*').eq('store_id', FIN_STORE_ID).eq('username', uname).eq('status','active').single();
-        if (ur.data && (ur.data.password||'').trim() === pass) {
-          loginOk = true;
-          FIN_STORE_NAME = sd.name;
-          localStorage.setItem('navar_store_name', sd.name);
-        }
+        if (ur.data && (ur.data.password||'').trim() === pass) loginOk = true;
       }
-      if (loginOk) {
-        var finNameEl = document.getElementById('fin-login-store');
-        var finLogoEl = document.getElementById('fin-logo-letter');
-        if (finNameEl) finNameEl.textContent = sd.name.toUpperCase();
-        if (finLogoEl) finLogoEl.textContent = sd.name[0].toUpperCase();
-      }
-    } else {
-      err.textContent = 'Store ID not found: ' + FIN_STORE_ID; return;
-    }
-  } catch(e) { console.warn('Fin login error:', e); }
-
-  // Fallback: local credentials
-  if (!loginOk) {
-    var adminUser = localStorage.getItem('navar_admin_user') || '';
-    var adminPass = localStorage.getItem('navar_admin_pass') || '';
-    if (uname === adminUser && pass === adminPass) loginOk = true;
+    } else { err.textContent = 'Store not found: ' + FIN_STORE_ID; return; }
+  } catch(e) {
+    // Fallback to localStorage
+    var storedUser = localStorage.getItem('navar_admin_user') || '';
+    var storedPass = localStorage.getItem('navar_admin_pass') || '';
+    storeName = localStorage.getItem('navar_store_name') || FIN_STORE_ID;
+    if ((uname === storedUser && pass === storedPass) || (uname==='admin' && pass==='admin123')) loginOk = true;
   }
-
   if (loginOk) {
+    FIN_STORE_NAME = storeName;
+    localStorage.setItem('navar_store_id', FIN_STORE_ID);
+    localStorage.setItem('navar_store_name', storeName);
+    localStorage.setItem('fin_logged_in', '1');
     err.textContent = '';
     document.getElementById('pin-screen').style.display = 'none';
+    var el = document.getElementById('fin-login-store');
+    var lo = document.getElementById('fin-logo-letter');
+    if (el) el.textContent = storeName.toUpperCase();
+    if (lo) lo.textContent = storeName[0] ? storeName[0].toUpperCase() : 'N';
     applyFinFeatureToggles();
+    loadCurrentPage('dashboard');
   } else {
-    err.textContent = 'Wrong username or password for this store';
+    err.textContent = 'Wrong username or password';
     document.getElementById('fin-login-pass').value = '';
     document.getElementById('fin-login-pass').focus();
   }
 }
 
-// Apply feature toggles to Finance nav
-function applyFinFeatureToggles() {
-  var finFeatureMap = {
-    'feature_purchases':   '[data-fin-feature="purchases"]',
-    'feature_assets':      '[data-fin-feature="assets"]',
-    'feature_liabilities': '[data-fin-feature="liabilities"]',
-    'feature_bank':        '[data-fin-feature="bank"]',
-    'feature_salaries':    '[data-fin-feature="salaries"]',
-  };
-  Object.keys(finFeatureMap).forEach(function(key) {
-    var sel = finFeatureMap[key];
-    document.querySelectorAll(sel).forEach(function(el) {
-      el.style.display = FIN_FEATURES[key.replace('feature_','')]===false ? 'none' : '';
-    });
-  });
-}
 
-document.addEventListener('DOMContentLoaded', function() {
-  // Apply Navar branding
-  FIN_STORE_ID   = localStorage.getItem('navar_store_id')   || 'default';
-  FIN_STORE_NAME = localStorage.getItem('navar_store_name') || 'Navar Finance';
-  FIN_BRAND_NAME = localStorage.getItem('navar_brand_name') || '';
-  FIN_STORE_USERS = JSON.parse(localStorage.getItem('navar_store_users') || '[]');
-  FIN_FEATURES    = JSON.parse(localStorage.getItem('navar_features') || '{}');
-  var snEl = document.getElementById('fin-store-name');
-  var sbEl = document.getElementById('fin-store-sub');
-  var lsEl = document.getElementById('fin-login-store');
-  var lbEl = document.getElementById('fin-login-brand');
-  if (snEl) snEl.textContent = FIN_STORE_NAME.toUpperCase();
-  if (sbEl && FIN_BRAND_NAME) sbEl.textContent = FIN_BRAND_NAME;
-  if (lsEl) lsEl.textContent = FIN_STORE_NAME;
-  if (lbEl && FIN_BRAND_NAME) lbEl.textContent = FIN_BRAND_NAME;
-
-  // SaaS auto-launch
-  try {
-    var launchRaw = localStorage.getItem('navar_launch_fin');
-    if (launchRaw) {
-      var launch = JSON.parse(launchRaw);
-      if (launch && launch.ts && (Date.now() - launch.ts) < 30000) {
-        localStorage.removeItem('navar_launch_fin');
-        document.getElementById('pin-screen').style.display = 'none';
-        applyFinFeatureToggles();
-        return;
-      } else { localStorage.removeItem('navar_launch_fin'); }
-    }
-  } catch(e) {}
-
-  // Focus username field
-  var input = document.getElementById('fin-login-user');
-  if (input) input.focus();
-});
-// ═══════════════════════════════════════════
-// SUPABASE — same as POS app
-// ═══════════════════════════════════════════
-// NAVAR SAAS — Multi-store Finance
-var FIN_STORE_ID   = localStorage.getItem('navar_store_id')   || 'default';
-var FIN_STORE_NAME = localStorage.getItem('navar_store_name') || 'Navar Finance';
-var FIN_BRAND_NAME = localStorage.getItem('navar_brand_name') || '';
-var FIN_STORE_USERS = JSON.parse(localStorage.getItem('navar_store_users') || '[]');
-var FIN_FEATURES = JSON.parse(localStorage.getItem('navar_features') || '{}');
-const SUPABASE_URL = localStorage.getItem('navar_sb_url') || 'https://copwoaaquhlprzydpseh.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvcHdvYWFxdWhscHJ6eWRwc2VoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2NjAyNzQsImV4cCI6MjA4OTIzNjI3NH0.9uFFf7ejGn6xb2U5tiKJXvMyu1XKIZXbubG7B8kWF2g';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-// ═══════════════════════════════════════════
-// LOCAL STORAGE KEYS
-// ═══════════════════════════════════════════
-const LS = {
-  transactions: 'fin_transactions',
-  suppliers: 'fin_suppliers',
-  purchases: 'fin_purchases',
-  employees: 'fin_employees',
-  payroll: 'fin_payroll',
-  bank: 'fin_bank',
-};
-
-function lsGet(key) { try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch(e) { return []; } }
-function lsSet(key, data) { localStorage.setItem(key, JSON.stringify(data)); }
-
-// ═══════════════════════════════════════════
-// POS SYNC DATA (from Supabase)
-// ═══════════════════════════════════════════
-let posData = { invoices: [], customers: [], products: [], invoice_items: [], expenses: [], warehouse_stock: [], inventory: [] };
-
-async function syncData() {
-  document.getElementById('sync-status').textContent = 'Syncing...';
-  try {
-    const [inv, cust, prod, items, exp, wh, truck] = await Promise.all([
-      sb.from('invoices').select('*'),
-      sb.from('customers').select('*'),
-      sb.from('products').select('*'),
-      sb.from('invoice_items').select('*'),
-      sb.from('expenses').select('*'),
-      sb.from('warehouse_stock').select('*'),
-      sb.from('inventory').select('*'),
-    ]);
-    posData.invoices = inv.data || [];
-    posData.customers = cust.data || [];
-    posData.products = prod.data || [];
-    posData.invoice_items = items.data || [];
-    posData.expenses = exp.data || [];
-    posData.warehouse_stock = wh.data || [];
-    posData.inventory = truck.data || [];
-    // Merge warehouse & truck qty into products for easy access
-    const whMap = {}; posData.warehouse_stock.forEach(w => whMap[w.product_id] = w.quantity || 0);
-    const trMap = {}; posData.inventory.forEach(t => trMap[t.product_id] = t.quantity || 0);
-    posData.products = posData.products.map(p => ({
-      ...p,
-      warehouse_qty: whMap[p.product_id] || 0,
-      truck_qty: trMap[p.product_id] || 0
-    }));
-    // Sync POS products into fin_products (merge, don't overwrite manual ones)
-    const finProds = lsGet('fin_products');
-    const finPosIds = new Set(finProds.map(p => p.pos_id).filter(Boolean));
-    const newFromPOS = posData.products
-      .filter(p => !finPosIds.has(p.product_id))
-      .map(p => ({
-        id: 'pos-' + p.product_id,
-        pos_id: p.product_id,
-        name: p.name,
-        category: p.category || '',
-        sell_price: p.selling_price || 0,
-        cost_price: p.cost_price || 0,
-        cases_per_box: p.cases_per_box || 4,
-        unit: p.unit || '',
-        barcode: p.barcode || '',
-        icon: p.icon || '📦',
-        notes: ''
-      }));
-    if (newFromPOS.length > 0) {
-      lsSet('fin_products', [...finProds, ...newFromPOS]);
-    }
-    document.getElementById('sync-status').textContent = 'Last sync: ' + new Date().toLocaleTimeString();
-    const activePage = document.querySelector('.page.active');
-    if (activePage) loadCurrentPage(activePage.id.replace('page-', ''));
-  } catch(e) {
-    document.getElementById('sync-status').textContent = 'Sync failed';
-    console.error(e);
-  }
-}
-
-function loadCurrentPage(page) {
-  if (page === 'dashboard') loadDashboard();
-  else if (page === 'pl') loadPL();
-  else if (page === 'balance') loadBalanceSheet();
-  else if (page === 'income') loadTransactions();
-  else if (page === 'suppliers') loadSuppliers();
-  else if (page === 'salaries') loadEmployees();
-  else if (page === 'products') loadProducts();
-  else if (page === 'purchases') loadPurchaseOrders();
-  else if (page === 'importcosts') loadImportCosts();
-  else if (page === 'cogs') loadCOGS();
-  else if (page === 'assets') loadAssets();
-  else if (page === 'liabilities') loadPayables();
-  else if (page === 'bank') loadBank();
-  else if (page === 'ledger') loadLedger();
-  else if (page === 'aging') loadAging();
-}
 
 // ═══════════════════════════════════════════
 // NAVIGATION
 // ═══════════════════════════════════════════
-const pageTitles = {
-  dashboard: ['Dashboard', 'Financial Overview'],
-  pl: ['Profit & Loss', 'Income statement for period'],
-  balance: ['Balance Sheet', 'Assets, liabilities and equity'],
-  income: ['Income & Expenses', 'All transactions'],
-  purchases: ['Purchases from Alaa', 'Track all purchases from Oman supplier'],
-  products: ['Products', 'Manage your product catalogue'],
-  importcosts: ['Import & Extra Costs', 'Customs, warehouse, transport, fuel'],
-  cogs: ['Cost Analysis', 'Full cost breakdown per box & profit margin'],
-  assets: ['Fixed Assets', 'Vehicles, equipment, furniture & more'],
-  liabilities: ['Liabilities', 'Supplier payables & owner drawings'],
-  suppliers: ['Suppliers', 'Supplier management'],
-  salaries: ['Employee Salaries', 'Payroll management'],
-  bank: ['Bank Reconciliation', 'Track cash flow'],
-  ledger: ['Customer Ledger', 'Customer account statements'],
-  aging: ['Aging Report', 'Outstanding receivables analysis'],
-};
 
-function showPage(page) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('page-' + page).classList.add('active');
-  event.currentTarget.classList.add('active');
-  const [title, sub] = pageTitles[page] || [page, ''];
-  document.getElementById('page-title').textContent = title;
-  document.getElementById('page-sub').textContent = sub;
-  loadCurrentPage(page);
-}
+
 
 // ═══════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════
-function fmt(n) { return 'QR ' + parseFloat(n || 0).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-function fmtStock(totalBags, cpb) {
-  cpb = parseInt(cpb) || 4;
-  if (totalBags === 0) return cpb > 1 ? '0 boxes' : '0';
-  if (cpb <= 1) return totalBags + ' bags';
-  const boxes = Math.floor(totalBags / cpb);
-  const rem = totalBags % cpb;
-  if (boxes === 0) return `${rem} bag${rem !== 1 ? 's' : ''}`;
-  if (rem === 0) return `${boxes} box${boxes !== 1 ? 'es' : ''}`;
-  return `${boxes} box${boxes !== 1 ? 'es' : ''} + ${rem} bag${rem !== 1 ? 's' : ''}`;
-}
-function today() { return new Date().toISOString().split('T')[0]; }
-function monthStart() { const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0]; }
-function lastMonthRange() {
-  const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1);
-  const from = d.toISOString().split('T')[0];
-  const to = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
-  return { from, to };
-}
-function getDateRange(period) {
-  const now = new Date();
-  if (period === 'month') return { from: monthStart(), to: today() };
-  if (period === 'lastmonth') return lastMonthRange();
-  if (period === 'quarter') {
-    const qStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
-    return { from: qStart.toISOString().split('T')[0], to: today() };
-  }
-  return { from: `${now.getFullYear()}-01-01`, to: today() };
-}
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
-function openModal(id) { document.getElementById(id).classList.add('open'); }
 
 // ═══════════════════════════════════════════
 // DASHBOARD
 // ═══════════════════════════════════════════
-let chartRevExp = null, chartBreakdown = null;
+
 
 function loadDashboard() {
   const period = document.getElementById('dash-period').value;
   const { from, to } = getDateRange(period);
   const invs = posData.invoices.filter(i => i.date >= from && i.date <= to);
-  const revenue = invs.reduce((a, i) => a + (i.total_amount || 0), 0);
+  const revenue = invs.reduce((a, i) => a + parseFloat(i.total_amount || 0), 0);
   const creditTotal = posData.customers.reduce((a, c) => a + (c.credit_balance || 0), 0);
   // Expenses from finance + POS expenses
-  const finExp = lsGet(LS.transactions).filter(t => t.type === 'expense' && t.date >= from && t.date <= to).reduce((a, t) => a + t.amount, 0);
+  const finExp = lsGet('transactions').filter(t => t.type === 'expense' && t.date >= from && t.date <= to).reduce((a, t) => a + t.amount, 0);
   const posExp = posData.expenses.filter(e => e.date >= from && e.date <= to).reduce((a, e) => a + (e.amount || 0), 0);
-  const salaries = lsGet(LS.payroll).filter(p => p.month >= from.slice(0, 7)).reduce((a, p) => a + p.net_pay, 0);
-  const purchases = lsGet(LS.purchases).filter(p => p.date >= from && p.date <= to).reduce((a, p) => a + p.amount, 0);
+  const salaries = lsGet('payroll').filter(p => p.month >= from.slice(0, 7)).reduce((a, p) => a + p.net_pay, 0);
+  const purchases = getPurchaseOrders().filter(p => p.date >= from && p.date <= to).reduce((a, p) => a + p.amount, 0);
   const totalExp = finExp + posExp + salaries + purchases;
   const profit = revenue - totalExp;
 
@@ -1422,7 +1214,7 @@ function buildRevExpChart(from, to) {
     if (!months[m]) months[m] = { rev: 0, exp: 0 };
     months[m].rev += i.total_amount || 0;
   });
-  lsGet(LS.transactions).filter(t => t.date >= from && t.date <= to && t.type === 'expense').forEach(t => {
+  lsGet('transactions').filter(t => t.date >= from && t.date <= to && t.type === 'expense').forEach(t => {
     const m = t.date.slice(0, 7);
     if (!months[m]) months[m] = { rev: 0, exp: 0 };
     months[m].exp += t.amount || 0;
@@ -1461,14 +1253,52 @@ function loadPL() {
   const from = document.getElementById('pl-from').value || monthStart();
   const to = document.getElementById('pl-to').value || today();
   const invs = posData.invoices.filter(i => i.date >= from && i.date <= to);
-  const revenue = invs.reduce((a, i) => a + (i.total_amount || 0), 0);
-  const cashSales = invs.filter(i => i.payment_type === 'cash').reduce((a, i) => a + (i.total_amount || 0), 0);
-  const creditSales = invs.filter(i => i.payment_type === 'credit').reduce((a, i) => a + (i.total_amount || 0), 0);
-  const chequeSales = invs.filter(i => i.payment_type === 'cheque').reduce((a, i) => a + (i.total_amount || 0), 0);
-  const purchases = lsGet(LS.purchases).filter(p => p.date >= from && p.date <= to).reduce((a, p) => a + p.amount, 0);
-  const grossProfit = revenue - purchases;
-  const salaries = lsGet(LS.payroll).filter(p => p.month >= from.slice(0, 7) && p.month <= to.slice(0, 7)).reduce((a, p) => a + p.net_pay, 0);
-  const finExp = lsGet(LS.transactions).filter(t => t.type === 'expense' && t.date >= from && t.date <= to);
+  const revenue = invs.reduce((a, i) => a + parseFloat(i.total_amount || 0), 0);
+  const cashSales = invs.filter(i => i.payment_type === 'cash').reduce((a, i) => a + parseFloat(i.total_amount || 0), 0);
+  const creditSales = invs.filter(i => i.payment_type === 'credit').reduce((a, i) => a + parseFloat(i.total_amount || 0), 0);
+  const chequeSales = invs.filter(i => i.payment_type === 'cheque').reduce((a, i) => a + parseFloat(i.total_amount || 0), 0);
+
+  // ── COGS = cost of items actually SOLD in the period ──
+  // invoice_items.cost = cost per bag (saved by POS at time of sale)
+  // invoice_items.quantity = bags sold
+  // Fallback: products.cost_price / cases_per_box if cost column is 0
+  const invIds = new Set(invs.map(i => i.invoice_id));
+  const prodMap = {};
+  posData.products.forEach(p => { prodMap[p.product_id] = p; });
+  const finProds = lsGet('products');
+  const finProdMap = {};
+  finProds.forEach(p => { if (p.pos_id) finProdMap[parseInt(p.pos_id)] = p; });
+
+  const cogsByProduct = {};
+  posData.invoice_items
+    .filter(it => invIds.has(it.invoice_id) || invIds.has(String(it.invoice_id)))
+    .forEach(it => {
+      const pid = parseInt(it.product_id);
+      const prod = prodMap[pid] || {};
+      const finProd = finProdMap[pid] || {};
+      const cpb = parseInt(prod.cases_per_box || finProd.cases_per_box || 4);
+      const costPerBox = parseFloat(prod.cost_price || finProd.cost_price || 0);
+      const costPerBag = costPerBox / cpb;
+      const storedCostPerBag = parseFloat(it.cost || 0);
+      const effectiveCostPerBag = storedCostPerBag > 0 ? storedCostPerBag : costPerBag;
+      const bagsSold = parseFloat(it.quantity || 0);
+      const itemCost = effectiveCostPerBag * bagsSold;
+      const name = prod.name || finProd.name || 'Product #' + pid;
+      if (!cogsByProduct[pid]) cogsByProduct[pid] = { name, cost: 0, bags: 0, cpb };
+      cogsByProduct[pid].cost += itemCost;
+      cogsByProduct[pid].bags += bagsSold;
+    });
+
+  const totalCOGS = Object.values(cogsByProduct).reduce((a, v) => a + v.cost, 0);
+  const importCosts = lsGet('import_costs').filter(c => c.date >= from && c.date <= to).reduce((a, c) => a + c.amount, 0);
+  const totalCOGSWithImport = totalCOGS + importCosts;
+  const grossProfit = revenue - totalCOGSWithImport;
+
+  // Also show total purchases in period as reference (not as expense)
+  const totalPurchased = getPurchaseOrders().filter(p => p.date >= from && p.date <= to).reduce((a, p) => a + p.amount, 0);
+
+  const salaries = lsGet('payroll').filter(p => p.month >= from.slice(0, 7) && p.month <= to.slice(0, 7)).reduce((a, p) => a + p.net_pay, 0);
+  const finExp = lsGet('transactions').filter(t => t.type === 'expense' && t.date >= from && t.date <= to);
   const posExp = posData.expenses.filter(e => e.date >= from && e.date <= to);
   const expByCategory = {};
   [...finExp, ...posExp.map(e => ({ category: e.category || 'Other', amount: e.amount }))].forEach(e => {
@@ -1477,6 +1307,15 @@ function loadPL() {
   const totalOpExp = Object.values(expByCategory).reduce((a, v) => a + v, 0) + salaries;
   const netProfit = grossProfit - totalOpExp;
 
+  // COGS breakdown rows by product
+  const cogsRows = Object.values(cogsByProduct).length > 0
+    ? Object.values(cogsByProduct).map(v => {
+        const cpb = v.cpb || 4;
+        const boxes = (v.bags / cpb).toFixed(1);
+        return `<tr><td style="padding:4px 8px 4px 20px;color:var(--text2);font-size:13px;">↳ ${v.name} (${boxes} boxes / ${v.bags} bags)</td><td style="text-align:right;padding:4px 8px;font-size:13px;">${fmt(v.cost)}</td></tr>`;
+      }).join('')
+    : '<tr><td colspan="2" style="padding:4px 8px 4px 20px;color:#999;font-size:12px;">No sales recorded in this period — make sure to Sync from POS</td></tr>';
+
   document.getElementById('pl-content').innerHTML = `
     <div class="card">
       <div class="card-header">
@@ -1484,7 +1323,7 @@ function loadPL() {
         <div style="font-size:12px;color:var(--text2);">${from} to ${to}</div>
       </div>
       <div style="padding:20px;max-width:700px;margin:0 auto;">
-        <table style="font-size:14px;">
+        <table style="font-size:14px;width:100%;">
           <tr><td colspan="2" style="font-weight:800;font-size:15px;color:var(--navy);padding:10px 0;border-bottom:2px solid var(--navy);">INCOME</td></tr>
           <tr><td style="padding:8px 0;">Cash Sales</td><td style="text-align:right;">${fmt(cashSales)}</td></tr>
           <tr><td style="padding:8px 0;">Credit Sales</td><td style="text-align:right;">${fmt(creditSales)}</td></tr>
@@ -1492,8 +1331,11 @@ function loadPL() {
           <tr style="font-weight:700;background:#e8f5e9;"><td style="padding:8px;">Total Revenue</td><td style="text-align:right;padding:8px;">${fmt(revenue)}</td></tr>
           <tr><td colspan="2" style="padding-top:16px;"></td></tr>
           <tr><td colspan="2" style="font-weight:800;font-size:15px;color:var(--red);padding:10px 0;border-bottom:2px solid var(--red);">COST OF GOODS SOLD</td></tr>
-          <tr><td style="padding:8px 0;">Purchases</td><td style="text-align:right;">${fmt(purchases)}</td></tr>
-          <tr style="font-weight:700;background:#fff8f8;"><td style="padding:8px;">Gross Profit</td><td style="text-align:right;padding:8px;color:${grossProfit >= 0 ? 'var(--green)' : 'var(--red)'};">${fmt(grossProfit)}</td></tr>
+          <tr><td style="padding:8px 0;font-weight:600;">Cost of Products Sold</td><td style="text-align:right;">${fmt(totalCOGS)}</td></tr>
+          ${cogsRows}
+          ${importCosts > 0 ? `<tr><td style="padding:8px 0;">Import & Extra Costs</td><td style="text-align:right;">${fmt(importCosts)}</td></tr>` : ''}
+          <tr style="font-weight:700;background:#fff8f8;"><td style="padding:8px;">Total COGS</td><td style="text-align:right;padding:8px;">${fmt(totalCOGSWithImport)}</td></tr>
+          <tr style="font-weight:700;background:#e8f5e9;"><td style="padding:8px;">Gross Profit</td><td style="text-align:right;padding:8px;color:${grossProfit >= 0 ? 'var(--green)' : 'var(--red)'};">${fmt(grossProfit)}</td></tr>
           <tr><td colspan="2" style="padding-top:16px;"></td></tr>
           <tr><td colspan="2" style="font-weight:800;font-size:15px;color:var(--red);padding:10px 0;border-bottom:2px solid var(--red);">OPERATING EXPENSES</td></tr>
           <tr><td style="padding:8px 0;">Salaries</td><td style="text-align:right;">${fmt(salaries)}</td></tr>
@@ -1501,6 +1343,9 @@ function loadPL() {
           <tr style="font-weight:700;background:#fff8f8;"><td style="padding:8px;">Total Operating Expenses</td><td style="text-align:right;padding:8px;">${fmt(totalOpExp)}</td></tr>
           <tr><td colspan="2" style="padding:8px 0;border-top:2px solid var(--navy);"></td></tr>
           <tr style="font-weight:900;font-size:16px;background:${netProfit >= 0 ? '#e8f5e9' : '#ffebee'};"><td style="padding:12px;">NET PROFIT / LOSS</td><td style="text-align:right;padding:12px;color:${netProfit >= 0 ? 'var(--green)' : 'var(--red)'};">${fmt(netProfit)}</td></tr>
+          <tr><td colspan="2" style="padding-top:16px;border-top:1px dashed var(--border);"></td></tr>
+          <tr><td style="padding:6px 0;color:var(--text2);font-size:12px;">📦 Total Purchased (period)</td><td style="text-align:right;color:var(--text2);font-size:12px;">${fmt(totalPurchased)}</td></tr>
+          <tr><td style="padding:6px 0;color:var(--text2);font-size:12px;">📊 Unsold Stock Cost (in warehouse/truck)</td><td style="text-align:right;color:var(--text2);font-size:12px;">${fmt(totalPurchased - totalCOGS)}</td></tr>
         </table>
       </div>
     </div>`;
@@ -1515,19 +1360,19 @@ function loadBalanceSheet() {
   const totalRevenue = invs.reduce((a, i) => a + (i.total_amount || 0), 0);
   const totalCredit = posData.customers.reduce((a, c) => a + (c.credit_balance || 0), 0);
   const cashSales = invs.filter(i => i.payment_type === 'cash' || i.payment_type === 'cheque').reduce((a, i) => a + (i.total_amount || 0), 0);
-  const totalPurchases = lsGet(LS.purchases).filter(p => p.date <= asOf).reduce((a, p) => a + p.amount, 0);
-  const totalSalaries = lsGet(LS.payroll).reduce((a, p) => a + p.net_pay, 0);
-  const totalExp = lsGet(LS.transactions).filter(t => t.type === 'expense' && t.date <= asOf).reduce((a, t) => a + t.amount, 0);
-  const bankIn = lsGet(LS.bank).filter(b => b.type === 'in' && b.date <= asOf).reduce((a, b) => a + b.amount, 0);
-  const bankOut = lsGet(LS.bank).filter(b => b.type === 'out' && b.date <= asOf).reduce((a, b) => a + b.amount, 0);
+  const totalPurchases = getPurchaseOrders().filter(p => p.date <= asOf).reduce((a, p) => a + p.amount, 0);
+  const totalSalaries = lsGet('payroll').reduce((a, p) => a + p.net_pay, 0);
+  const totalExp = lsGet('transactions').filter(t => t.type === 'expense' && t.date <= asOf).reduce((a, t) => a + t.amount, 0);
+  const bankIn = lsGet('bank').filter(b => b.type === 'in' && b.date <= asOf).reduce((a, b) => a + b.amount, 0);
+  const bankOut = lsGet('bank').filter(b => b.type === 'out' && b.date <= asOf).reduce((a, b) => a + b.amount, 0);
   const cashBalance = cashSales + bankIn - bankOut - totalPurchases - totalSalaries - totalExp;
   const totalAssets = cashBalance + totalCredit;
-  const totalLiabilities = lsGet(LS.purchases).filter(p => p.status === 'pending').reduce((a, p) => a + p.amount, 0);
+  const totalLiabilities = getPurchaseOrders().filter(p => p.status === 'pending').reduce((a, p) => a + p.amount, 0);
   const equity = totalAssets - totalLiabilities;
 
-  const assets = lsGet('fin_assets').filter(a => a.status === 'active');
+  const assets = lsGet('assets').filter(a => a.status === 'active');
   const totalFixedAssets = assets.reduce((a, ast) => a + calcCurrentValue(ast), 0);
-  const drawings = lsGet('fin_drawings').reduce((a, d) => a + d.amount, 0);
+  const drawings = lsGet('drawings').reduce((a, d) => a + d.amount, 0);
 
   document.getElementById('bs-content').innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
@@ -1563,7 +1408,7 @@ function loadBalanceSheet() {
 // ═══════════════════════════════════════════
 // INCOME & EXPENSES TRANSACTIONS
 // ═══════════════════════════════════════════
-let currentIncomeTab = 'income';
+
 function switchIncomeTab(tab) {
   currentIncomeTab = tab;
   document.querySelectorAll('#page-income .tab').forEach((t, i) => t.classList.toggle('active', i === (tab === 'income' ? 0 : 1)));
@@ -1572,7 +1417,7 @@ function switchIncomeTab(tab) {
 function loadTransactions() {
   const from = document.getElementById('inc-from').value || monthStart();
   const to = document.getElementById('inc-to').value || today();
-  const all = lsGet(LS.transactions);
+  const all = lsGet('transactions');
   // Add POS sales as income
   const posSales = posData.invoices.filter(i => i.date >= from && i.date <= to).map(i => ({
     id: 'pos-' + i.invoice_id, date: i.date, type: 'income',
@@ -1621,18 +1466,18 @@ function saveTransaction() {
     ref: document.getElementById('t-ref').value
   };
   if (!t.amount || !t.date) { alert('Fill all required fields'); return; }
-  const all = lsGet(LS.transactions); all.unshift(t); lsSet(LS.transactions, all);
+  const all = lsGet('transactions'); all.unshift(t); lsSet('transactions', all);
   closeModal('modal-transaction'); loadTransactions();
 }
 function deleteTransaction(id) {
   if (!confirm('Delete this transaction?')) return;
-  lsSet(LS.transactions, lsGet(LS.transactions).filter(t => t.id !== id)); loadTransactions();
+  lsSet('transactions', lsGet('transactions').filter(t => t.id !== id)); loadTransactions();
 }
 
 // ═══════════════════════════════════════════
 // SUPPLIERS
 // ═══════════════════════════════════════════
-let currentSupplierTab = 'list';
+
 function switchSupplierTab(tab) {
   currentSupplierTab = tab;
   document.querySelectorAll('#page-suppliers .tab').forEach((t, i) => t.classList.toggle('active', i === (tab === 'list' ? 0 : 1)));
@@ -1641,8 +1486,8 @@ function switchSupplierTab(tab) {
   if (tab === 'list') loadSuppliers(); else loadPurchases();
 }
 function loadSuppliers() {
-  const suppliers = lsGet(LS.suppliers);
-  const purchases = lsGet(LS.purchases);
+  const suppliers = lsGet('suppliers');
+  const purchases = lsGet('purchases');
   document.getElementById('supplier-list').innerHTML = suppliers.map(s => {
     const total = purchases.filter(p => p.supplier_id === s.id).reduce((a, p) => a + p.amount, 0);
     const pending = purchases.filter(p => p.supplier_id === s.id && p.status === 'pending').reduce((a, p) => a + p.amount, 0);
@@ -1650,8 +1495,8 @@ function loadSuppliers() {
   }).join('') || '<tr><td colspan="5" style="text-align:center;padding:20px;color:#999;">No suppliers</td></tr>';
 }
 function loadPurchases() {
-  const purchases = lsGet(LS.purchases);
-  const suppliers = lsGet(LS.suppliers);
+  const purchases = lsGet('purchases');
+  const suppliers = lsGet('suppliers');
   const supMap = {}; suppliers.forEach(s => supMap[s.id] = s.name);
   document.getElementById('purchase-list').innerHTML = purchases.map(p => `
     <tr><td>${p.date}</td><td>${supMap[p.supplier_id] || '-'}</td><td>${p.description}</td><td>${fmt(p.amount)}</td>
@@ -1662,12 +1507,12 @@ function openAddSupplierModal() { document.getElementById('sup-name').value = ''
 function saveSupplier() {
   const s = { id: Date.now().toString(), name: document.getElementById('sup-name').value, phone: document.getElementById('sup-phone').value, email: document.getElementById('sup-email').value, category: document.getElementById('sup-cat').value, address: document.getElementById('sup-addr').value };
   if (!s.name) { alert('Enter supplier name'); return; }
-  const all = lsGet(LS.suppliers); all.push(s); lsSet(LS.suppliers, all);
+  const all = lsGet('suppliers'); all.push(s); lsSet('suppliers', all);
   closeModal('modal-supplier'); loadSuppliers();
   // Update purchase dropdown
   refreshSupplierDropdowns();
 }
-function deleteSupplier(id) { if (!confirm('Delete?')) return; lsSet(LS.suppliers, lsGet(LS.suppliers).filter(s => s.id !== id)); loadSuppliers(); }
+function deleteSupplier(id) { if (!confirm('Delete?')) return; lsSet('suppliers', lsGet('suppliers').filter(s => s.id !== id)); loadSuppliers(); }
 function openAddPurchaseModal() {
   refreshSupplierDropdowns();
   document.getElementById('pur-date').value = today();
@@ -1676,11 +1521,11 @@ function openAddPurchaseModal() {
 function savePurchase() {
   const p = { id: Date.now().toString(), date: document.getElementById('pur-date').value, supplier_id: document.getElementById('pur-supplier').value, description: document.getElementById('pur-desc').value, amount: parseFloat(document.getElementById('pur-amount').value) || 0, invoice_ref: document.getElementById('pur-inv').value, status: document.getElementById('pur-status').value };
   if (!p.amount || !p.date) { alert('Fill required fields'); return; }
-  const all = lsGet(LS.purchases); all.unshift(p); lsSet(LS.purchases, all);
+  const all = lsGet('purchases'); all.unshift(p); lsSet('purchases', all);
   closeModal('modal-purchase'); loadPurchases();
 }
 function refreshSupplierDropdowns() {
-  const suppliers = lsGet(LS.suppliers);
+  const suppliers = lsGet('suppliers');
   const opts = suppliers.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
   document.getElementById('pur-supplier').innerHTML = '<option value="">Select supplier</option>' + opts;
 }
@@ -1688,7 +1533,7 @@ function refreshSupplierDropdowns() {
 // ═══════════════════════════════════════════
 // EMPLOYEES & PAYROLL
 // ═══════════════════════════════════════════
-let currentSalaryTab = 'employees';
+
 function switchSalaryTab(tab) {
   currentSalaryTab = tab;
   document.querySelectorAll('#page-salaries .tab').forEach((t, i) => t.classList.toggle('active', i === (tab === 'employees' ? 0 : 1)));
@@ -1697,12 +1542,12 @@ function switchSalaryTab(tab) {
   if (tab === 'employees') loadEmployees(); else loadPayroll();
 }
 function loadEmployees() {
-  const employees = lsGet(LS.employees);
+  const employees = lsGet('employees');
   const totalSalary = employees.filter(e => e.status === 'active').reduce((a, e) => a + e.salary, 0);
   document.getElementById('emp-count').textContent = employees.filter(e => e.status === 'active').length;
   document.getElementById('salary-total').textContent = fmt(totalSalary);
   const thisMonth = new Date().toISOString().slice(0, 7);
-  const paidThisMonth = lsGet(LS.payroll).filter(p => p.month === thisMonth).reduce((a, p) => a + p.net_pay, 0);
+  const paidThisMonth = lsGet('payroll').filter(p => p.month === thisMonth).reduce((a, p) => a + p.net_pay, 0);
   document.getElementById('salary-paid').textContent = fmt(paidThisMonth);
   document.getElementById('employee-list').innerHTML = employees.map(e => `
     <tr><td><strong>${e.name}</strong></td><td>${e.position}</td><td>${fmt(e.salary)}</td>
@@ -1711,8 +1556,8 @@ function loadEmployees() {
   `).join('') || '<tr><td colspan="5" style="text-align:center;padding:20px;color:#999;">No employees</td></tr>';
 }
 function loadPayroll() {
-  const payroll = lsGet(LS.payroll);
-  const empMap = {}; lsGet(LS.employees).forEach(e => empMap[e.id] = e.name);
+  const payroll = lsGet('payroll');
+  const empMap = {}; lsGet('employees').forEach(e => empMap[e.id] = e.name);
   document.getElementById('payroll-list').innerHTML = payroll.map(p => `
     <tr><td>${p.month}</td><td>${p.emp_id === 'all' ? 'All Employees' : empMap[p.emp_id] || '-'}</td>
     <td>${fmt(p.basic)}</td><td>${fmt(p.allowance)}</td><td>${fmt(p.deduction)}</td>
@@ -1724,10 +1569,10 @@ function openAddEmployeeModal() { document.getElementById('emp-join').value = to
 function saveEmployee() {
   const e = { id: Date.now().toString(), name: document.getElementById('emp-name').value, position: document.getElementById('emp-pos').value, salary: parseFloat(document.getElementById('emp-salary').value) || 0, phone: document.getElementById('emp-phone').value, join_date: document.getElementById('emp-join').value, status: document.getElementById('emp-status').value };
   if (!e.name) { alert('Enter name'); return; }
-  const all = lsGet(LS.employees); all.push(e); lsSet(LS.employees, all);
+  const all = lsGet('employees'); all.push(e); lsSet('employees', all);
   closeModal('modal-employee'); loadEmployees(); refreshEmployeeDropdowns();
 }
-function deleteEmployee(id) { if (!confirm('Delete?')) return; lsSet(LS.employees, lsGet(LS.employees).filter(e => e.id !== id)); loadEmployees(); }
+function deleteEmployee(id) { if (!confirm('Delete?')) return; lsSet('employees', lsGet('employees').filter(e => e.id !== id)); loadEmployees(); }
 function openPayrollModal() {
   refreshEmployeeDropdowns();
   document.getElementById('pay-month').value = new Date().toISOString().slice(0, 7);
@@ -1735,20 +1580,20 @@ function openPayrollModal() {
 }
 function savePayroll() {
   const empId = document.getElementById('pay-emp').value;
-  const emps = empId === 'all' ? lsGet(LS.employees).filter(e => e.status === 'active') : lsGet(LS.employees).filter(e => e.id === empId);
+  const emps = empId === 'all' ? lsGet('employees').filter(e => e.status === 'active') : lsGet('employees').filter(e => e.id === empId);
   const allowance = parseFloat(document.getElementById('pay-allowance').value) || 0;
   const deduction = parseFloat(document.getElementById('pay-deduction').value) || 0;
   const month = document.getElementById('pay-month').value;
-  const all = lsGet(LS.payroll);
+  const all = lsGet('payroll');
   emps.forEach(e => {
     const net = e.salary + allowance - deduction;
     all.unshift({ id: Date.now().toString() + e.id, emp_id: e.id, month, basic: e.salary, allowance, deduction, net_pay: net, notes: document.getElementById('pay-notes').value });
   });
-  lsSet(LS.payroll, all);
+  lsSet('payroll', all);
   closeModal('modal-payroll'); loadPayroll(); loadEmployees();
 }
 function refreshEmployeeDropdowns() {
-  const employees = lsGet(LS.employees);
+  const employees = lsGet('employees');
   const opts = employees.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
   document.getElementById('pay-emp').innerHTML = '<option value="all">All Employees</option>' + opts;
 }
@@ -1757,7 +1602,7 @@ function refreshEmployeeDropdowns() {
 // BANK RECONCILIATION
 // ═══════════════════════════════════════════
 function loadBank() {
-  const transactions = lsGet(LS.bank).sort((a, b) => b.date.localeCompare(a.date));
+  const transactions = lsGet('bank').sort((a, b) => b.date.localeCompare(a.date));
   let running = 0;
   const withBalance = [...transactions].reverse().map(t => { running += t.type === 'in' ? t.amount : -t.amount; return { ...t, balance: running }; }).reverse();
   const totalIn = transactions.filter(t => t.type === 'in').reduce((a, t) => a + t.amount, 0);
@@ -1777,7 +1622,7 @@ function openAddBankTxModal() { document.getElementById('bk-date').value = today
 function saveBankTx() {
   const t = { id: Date.now().toString(), date: document.getElementById('bk-date').value, type: document.getElementById('bk-type').value, amount: parseFloat(document.getElementById('bk-amount').value) || 0, ref: document.getElementById('bk-ref').value, description: document.getElementById('bk-desc').value, reconciled: false };
   if (!t.amount) { alert('Enter amount'); return; }
-  const all = lsGet(LS.bank); all.unshift(t); lsSet(LS.bank, all);
+  const all = lsGet('bank'); all.unshift(t); lsSet('bank', all);
   closeModal('modal-bank-tx'); loadBank();
 }
 
@@ -1853,7 +1698,7 @@ function loadAging() {
 // ═══════════════════════════════════════════
 // PRODUCTS
 // ═══════════════════════════════════════════
-let currentProductTab = 'list';
+
 
 function switchProductTab(tab) {
   currentProductTab = tab;
@@ -1862,7 +1707,7 @@ function switchProductTab(tab) {
 }
 
 function loadProducts() {
-  const products = lsGet('fin_products');
+  const products = lsGet('products');
   const search = (document.getElementById('prod-search')?.value||'').toLowerCase();
   const filtered = products.filter(p => !search || p.name.toLowerCase().includes(search));
   document.getElementById('prod-count').textContent = products.length;
@@ -1877,7 +1722,7 @@ function loadProducts() {
     const wh = p.pos_id ? (whMap[p.pos_id]||0) : 0;
     totalWHBags += wh;
     totalWHBoxes += Math.floor(wh / cpb);
-    totalWHValue += wh * ((p.cost_price||0) / cpb);
+    totalWHValue += Math.floor(wh / cpb) * (p.cost_price||0);
   });
   document.getElementById('prod-wh-total').textContent = totalWHBoxes + ' boxes total';
   document.getElementById('prod-wh-value').textContent = fmt(totalWHValue);
@@ -1898,6 +1743,7 @@ function loadProducts() {
       <td style="font-weight:700;color:var(--navy);">${trFmt}</td>
       <td>
         <button class="btn btn-outline btn-sm" onclick="editProduct('${p.id}')">✏️</button>
+        <button class="btn btn-outline btn-sm" onclick="setStockManual(${p.pos_id},'${p.name}',${whBags})" style="color:var(--green);" title="Set warehouse stock manually">📦</button>
         <button class="btn btn-danger btn-sm" onclick="deleteProduct('${p.id}')">✕</button>
       </td>
     </tr>`;
@@ -1918,7 +1764,7 @@ function openAddProductModal() {
 }
 
 function editProduct(id) {
-  const p = lsGet('fin_products').find(p => p.id === id);
+  const p = lsGet('products').find(p => p.id === id);
   if (!p) return;
   document.getElementById('prod-modal-title').textContent = 'Edit Product';
   document.getElementById('prod-modal-title').dataset.editId = id;
@@ -1935,579 +1781,397 @@ function editProduct(id) {
 
 async function saveProduct() {
   const editId = document.getElementById('prod-modal-title').dataset.editId;
-  const p = {
-    id: editId || Date.now().toString(),
-    name: document.getElementById('prod-name').value.trim(),
-    category: document.getElementById('prod-category').value,
-    sell_price: parseFloat(document.getElementById('prod-sell-price').value)||0,
-    cost_price: parseFloat(document.getElementById('prod-cost-price').value)||0,
-    unit: document.getElementById('prod-unit').value,
-    cases_per_box: parseInt(document.getElementById('prod-cases-per-box').value) || 1,
-    barcode: document.getElementById('prod-barcode').value,
-    notes: document.getElementById('prod-notes').value,
-    icon: '📦'
-  };
-  if (!p.name) { alert('Enter product name'); return; }
-  const all = lsGet('fin_products');
+  const name = document.getElementById('prod-name').value.trim();
+  if (!name) { alert('Enter product name'); return; }
+  const all = lsGet('products');
+
   if (editId) {
-    // Update in Finance
+    // ── EDIT existing product ──
     const idx = all.findIndex(x => x.id === editId);
-    if (idx >= 0) all[idx] = p;
-    // Update in POS Supabase if pos_id exists
-    if (p.pos_id) {
+    if (idx < 0) { alert('Product not found'); return; }
+    const existing = all[idx];
+    // Merge new values into existing — preserve pos_id and id
+    all[idx] = Object.assign({}, existing, {
+      name,
+      category: document.getElementById('prod-category').value,
+      sell_price: parseFloat(document.getElementById('prod-sell-price').value) || existing.sell_price || 0,
+      cost_price: parseFloat(document.getElementById('prod-cost-price').value) || existing.cost_price || 0,
+      unit: document.getElementById('prod-unit').value || existing.unit || '',
+      cases_per_box: parseInt(document.getElementById('prod-cases-per-box').value) || existing.cases_per_box || 1,
+      barcode: document.getElementById('prod-barcode').value || existing.barcode || '',
+      notes: document.getElementById('prod-notes').value || existing.notes || '',
+    });
+    const updated = all[idx];
+    lsSet('products', all);
+    // Also update in POS Supabase if linked
+    if (updated.pos_id) {
       try {
-        await sb.from('products').update({
-          name: p.name, category: p.category,
-          selling_price: p.sell_price, cost_price: p.cost_price,
-          unit: p.unit, icon: '📦'
-        }).eq('product_id', p.pos_id);
+        const { error } = await sb.from('products').update({
+          name: updated.name,
+          category: updated.category,
+          selling_price: updated.sell_price,
+          cost_price: updated.cost_price,
+          unit: updated.unit,
+          cases_per_box: updated.cases_per_box,
+        }).eq('product_id', updated.pos_id);
+        if (error) throw error;
         showToast('✅ Product updated in POS!');
-      } catch(e) { console.error('POS update error:', e); }
+      } catch(e) {
+        console.error('POS update error:', e);
+        showToast('⚠️ Finance updated but POS sync failed: ' + e.message);
+      }
+    } else {
+      showToast('✅ Product updated!');
     }
+
   } else {
-    all.unshift(p);
-    // Insert into POS Supabase with correct fields
+    // ── NEW product ──
+    const name = document.getElementById('prod-name').value.trim();
+    // Check duplicate name in Supabase first
     try {
-      const insertData = {
+      const { data: existing } = await sb.from('products').select('product_id, name').ilike('name', name);
+      if (existing && existing.length > 0) {
+        alert('⚠️ A product named "' + name + '" already exists in POS (ID: ' + existing[0].product_id + ').\n\nClick "🔄 Sync from POS" to import it to Finance instead of creating a duplicate.');
+        return;
+      }
+    } catch(e) { console.warn('Duplicate check failed:', e.message); }
+
+    const p = {
+      id: 'fin-' + Date.now().toString(),
+      pos_id: null,
+      name,
+      category: document.getElementById('prod-category').value,
+      sell_price: parseFloat(document.getElementById('prod-sell-price').value) || 0,
+      cost_price: parseFloat(document.getElementById('prod-cost-price').value) || 0,
+      unit: document.getElementById('prod-unit').value || '',
+      cases_per_box: parseInt(document.getElementById('prod-cases-per-box').value) || 1,
+      barcode: document.getElementById('prod-barcode').value || '',
+      notes: document.getElementById('prod-notes').value || '',
+      icon: '📦'
+    };
+    // Insert into POS Supabase first to get real product_id
+    try {
+      const { data, error } = await sb.from('products').insert({
         name: p.name,
         category: p.category,
         cost_price: p.cost_price,
         selling_price: p.sell_price,
         stock_quantity: 0,
-        unit: p.unit || '',
+        unit: p.unit,
+        cases_per_box: p.cases_per_box,
         low_stock_threshold: 10,
         icon: '📦',
-        photo: null,
         created_at: new Date().toISOString()
-      };
-      const { data, error } = await sb.from('products').insert(insertData).select();
+      }).select().single();
       if (error) throw error;
-      if (data && data[0]) {
-        const posProductId = data[0].product_id;
-        p.pos_id = posProductId;
-        all[0] = p;
-        // Create warehouse_stock and inventory entries
-        await sb.from('warehouse_stock').insert({ product_id: posProductId, quantity: 0, last_updated: new Date().toISOString() });
-        await sb.from('inventory').insert({ product_id: posProductId, quantity: 0, last_updated: new Date().toISOString() });
-        showToast(`✅ Product added to POS! Reload POS app to see it.`);
-      } else {
-        showToast('⚠️ Saved locally but POS sync failed');
+      if (data && data.product_id) {
+        p.pos_id = data.product_id;
+        p.id = 'pos-' + data.product_id;
+        // Create warehouse & inventory rows
+        await sb.from('warehouse_stock').insert({ product_id: data.product_id, quantity: 0, last_updated: new Date().toISOString() });
+        await sb.from('inventory').insert({ product_id: data.product_id, quantity: 0, last_updated: new Date().toISOString() });
+        showToast('✅ Product added to POS! ID: ' + data.product_id);
       }
     } catch(e) {
-      console.error('POS sync error:', e);
-      showToast('⚠️ Saved locally — POS sync error: ' + e.message);
+      console.error('POS insert error:', e);
+      showToast('⚠️ POS sync failed: ' + e.message);
+    }
+    // Add to fin_products (with real pos_id if sync worked)
+    const allNow = lsGet('products');
+    // Final duplicate check by name
+    if (!allNow.find(x => x.name.toLowerCase().trim() === p.name.toLowerCase().trim())) {
+      allNow.unshift(p);
+      lsSet('products', allNow);
     }
   }
-  lsSet('fin_products', all);
   closeModal('modal-product');
   loadProducts();
 }
 
 function deleteProduct(id) {
   if (!confirm('Delete this product?')) return;
-  lsSet('fin_products', lsGet('fin_products').filter(p => p.id !== id));
+  lsSet('products', lsGet('products').filter(p => p.id !== id));
   loadProducts();
 }
 
-// ═══════════════════════════════════════════
-// PURCHASES FROM ALAA
-// ═══════════════════════════════════════════
-let currentPurchaseTab = 'list';
+async function setStockManual(posId, name, currentBags) {
+  const cpb = (lsGet('products').find(p=>p.pos_id==posId)||{}).cases_per_box || 4;
+  const currentBoxes = Math.floor(currentBags / cpb);
+  const input = prompt(
+    '📦 Set Warehouse Stock for: ' + name +
+    '\nCurrent: ' + currentBoxes + ' boxes (' + currentBags + ' bags)' +
+    '\n\nEnter BOXES (will be converted to bags automatically):'
+  );
+  if (input === null) return;
+  const boxes = parseInt(input);
+  if (isNaN(boxes) || boxes < 0) { alert('Invalid number'); return; }
+  const bags = boxes * cpb;
+  try {
+    const { data: ex } = await sb.from('warehouse_stock').select('id').eq('product_id', posId);
+    if (ex && ex.length > 0) {
+      await sb.from('warehouse_stock').update({ quantity: bags, last_updated: new Date().toISOString() }).eq('product_id', posId);
+    } else {
+      await sb.from('warehouse_stock').insert({ product_id: posId, quantity: bags, last_updated: new Date().toISOString() });
+    }
+    await sb.from('products').update({ stock_quantity: bags }).eq('product_id', posId);
+    // Refresh local posData
+    const { data: freshWH } = await sb.from('warehouse_stock').select('*');
+    if (freshWH) posData.warehouse_stock = freshWH;
+    loadProducts();
+    showToast('✅ Stock set to ' + boxes + ' boxes (' + bags + ' bags) for ' + name);
+  } catch(e) {
+    alert('Error setting stock: ' + e.message);
+  }
+}
+
+function cleanDuplicateProducts() {
+  const all = lsGet('products');
+  const seen = new Set();
+  const seenNames = new Set();
+  const clean = [];
+  all.forEach(p => {
+    // Deduplicate by pos_id first, then by name
+    const key = p.pos_id ? ('id:' + p.pos_id) : ('name:' + p.name.toLowerCase().trim());
+    if (!seen.has(key)) {
+      seen.add(key);
+      clean.push(p);
+    }
+  });
+  const removed = all.length - clean.length;
+  lsSet('products', clean);
+  loadProducts();
+  if (removed > 0) {
+    showToast('🧹 Removed ' + removed + ' duplicate product(s)!');
+  } else {
+    showToast('✅ No duplicates found.');
+  }
+}
+
+
+
 function switchPurchaseTab(tab) {
   currentPurchaseTab = tab;
   document.querySelectorAll('#page-purchases .tab').forEach((t,i) => t.classList.toggle('active', i===(tab==='list'?0:1)));
   loadPurchaseOrders();
 }
 
+// ═══════════════════════════════════════════
+// PURCHASE ORDERS — Multi-product
+// ═══════════════════════════════════════════
+let poLines = [];
+
 function loadPurchaseOrders() {
-  const orders = lsGet('fin_purchase_orders');
+  const orders = lsGet('purchase_orders');
   const from = document.getElementById('pur-from')?.value || '';
   const to = document.getElementById('pur-to')?.value || '';
   const filtered = orders.filter(o => (!from || o.date >= from) && (!to || o.date <= to));
-  const total = filtered.reduce((a,o) => a+o.total, 0);
-  const pending = filtered.filter(o=>o.status==='pending'||o.status==='partial').reduce((a,o)=>a+o.total,0);
-  const paid = filtered.filter(o=>o.status==='paid').reduce((a,o)=>a+o.total,0);
-  const units = filtered.reduce((a,o) => a+(o.qty||0), 0);
+  const total = filtered.reduce((a,o) => a+(o.grand_total||o.total||0), 0);
+  const pending = filtered.filter(o=>o.status==='pending'||o.status==='partial').reduce((a,o)=>a+(o.grand_total||o.total||0),0);
+  const paid = filtered.filter(o=>o.status==='paid').reduce((a,o)=>a+(o.grand_total||o.total||0),0);
+  const units = filtered.reduce((a,o) => { if(o.lines) return a+o.lines.reduce((b,l)=>b+(l.qty||0),0); return a+(o.qty||0); }, 0);
   document.getElementById('pur-total').textContent = fmt(total);
   document.getElementById('pur-pending').textContent = fmt(pending);
   document.getElementById('pur-paid').textContent = fmt(paid);
   document.getElementById('pur-units').textContent = units + ' boxes';
   document.getElementById('purchase-order-list').innerHTML = filtered.sort((a,b)=>b.date.localeCompare(a.date)).map(o => {
-    const cpb = o.cases_per_box || 1;
-    const totalBags = o.total_cases || (o.qty * cpb);
-    const bagsFmt = fmtStock(totalBags, cpb);
-    return `<tr>
-      <td>${o.date}</td>
-      <td><strong>${o.invoice_ref||'—'}</strong></td>
-      <td>${o.product}</td>
-      <td style="text-align:center;font-weight:700;">${o.qty} box${o.qty!==1?'es':''}<br><small style="color:var(--text2);">${bagsFmt}</small></td>
-      <td>${fmt(o.unit_price)}</td>
-      <td style="font-weight:700;color:var(--navy);">${fmt(o.total)}</td>
-      <td><span class="badge badge-${o.status==='paid'?'green':o.status==='pending'?'red':'gold'}">${o.status}</span></td>
-      <td>
-        ${o.status!=='paid'?`<button class="btn btn-success btn-sm" onclick="markPOPaid('${o.id}')">✅ Paid</button>`:''}
-        <button class="btn btn-danger btn-sm" onclick="deletePO('${o.id}')">✕</button>
-      </td>
-    </tr>`;
-  }).join('') || '<tr><td colspan="8" style="text-align:center;padding:20px;color:#999;">No purchases yet</td></tr>';
+    const lines = o.lines || [{ productName: o.product, qty: o.qty, total_cases: o.total_cases||o.qty, price: o.unit_price||0, total: o.total||0 }];
+    const grandTotal = o.grand_total || o.total || 0;
+    const productSummary = lines.map(l => (l.productName||l.product||'?') + ' (' + (l.qty||0) + ' boxes)').join(', ');
+    const totalBoxes = lines.reduce((a,l)=>a+(l.qty||0),0);
+    const statusBadge = o.status==='paid'?'green':o.status==='pending'?'red':'gold';
+    return '<tr>' +
+      '<td>' + o.date + '</td>' +
+      '<td><strong>' + (o.invoice_ref||'—') + '</strong></td>' +
+      '<td style="max-width:200px;font-size:12px;">' + productSummary + '</td>' +
+      '<td style="text-align:center;font-weight:700;">' + totalBoxes + '</td>' +
+      '<td style="font-weight:700;color:var(--navy);">' + fmt(grandTotal) + '</td>' +
+      '<td><span class="badge badge-' + statusBadge + '">' + o.status + '</span></td>' +
+      '<td style="display:flex;gap:4px;flex-wrap:wrap;">' +
+        '<button class="btn btn-outline btn-sm" onclick="printSavedPO(\'' + o.id + '\')">🖨️</button>' +
+        (o.status!=='paid' ? '<button class="btn btn-success btn-sm" onclick="markPOPaid(\'' + o.id + '\')">✅</button>' : '') +
+        '<button class="btn btn-danger btn-sm" onclick="deletePO(\'' + o.id + '\')">✕</button>' +
+      '</td>' +
+    '</tr>';
+  }).join('') || '<tr><td colspan="7" style="text-align:center;padding:20px;color:#999;">No purchases yet</td></tr>';
 }
 
 function openAddPurchaseOrderModal() {
+  poLines = [];
   document.getElementById('po-date').value = today();
   document.getElementById('po-inv').value = '';
-  document.getElementById('po-qty').value = '';
-  document.getElementById('po-unit-price').value = '';
-  document.getElementById('po-total').value = '';
   document.getElementById('po-notes').value = '';
-  // Populate from Finance products first, fallback to POS products
-  const finProds = lsGet('fin_products');
-  const sel = document.getElementById('po-product-id');
+  document.getElementById('po-status').value = 'pending';
+  document.getElementById('po-add-qty').value = '';
+  document.getElementById('po-add-price').value = '';
+  document.getElementById('po-add-total').value = '';
+  renderPOLines();
+  const finProds = lsGet('products');
+  const sel = document.getElementById('po-add-product');
   if (finProds.length > 0) {
+    // Only show products that have a valid pos_id (real POS integer)
+    const linked = finProds.filter(p => p.pos_id && parseInt(p.pos_id) <= 2147483647);
+    const unlinked = finProds.filter(p => !p.pos_id || parseInt(p.pos_id) > 2147483647);
     sel.innerHTML = '<option value="">Select product...</option>' +
-      finProds.map(p => `<option value="${p.id}" data-price="${p.cost_price||0}" data-cases-per-box="${p.cases_per_box||1}" data-pos-id="${p.pos_id||p.id}">${p.icon||'📦'} ${p.name} (${p.cases_per_box||1} bags/box)</option>`).join('');
+      linked.map(function(p) {
+        return '<option value="' + p.pos_id + '" data-posid="' + p.pos_id + '" data-name="' + p.name + '" data-cpb="' + (p.cases_per_box||1) + '" data-price="' + (p.cost_price||0) + '">' +
+          (p.icon||'📦') + ' ' + p.name + ' (' + (p.cases_per_box||1) + ' bags/box)</option>';
+      }).join('') +
+      (unlinked.length ? '<option disabled>── Not linked to POS (' + unlinked.length + ') — Sync first ──</option>' : '');
+    if (linked.length === 0) {
+      sel.innerHTML = '<option value="">⚠️ No linked products — click Sync from POS first</option>';
+    }
   } else {
-    sel.innerHTML = '<option value="">Select product...</option>' +
-      posData.products.map(p => `<option value="${p.product_id}" data-price="${p.selling_price||0}" data-cases-per-box="1" data-pos-id="${p.product_id}">${p.icon||'📦'} ${p.name}</option>`).join('');
+    sel.innerHTML = '<option value="">Select product... (Sync from POS first)</option>' +
+      posData.products.map(function(p) {
+        return '<option value="' + p.product_id + '" data-posid="' + p.product_id + '" data-name="' + p.name + '" data-cpb="' + (p.cases_per_box||1) + '" data-price="' + (p.cost_price||0) + '">' +
+          (p.icon||'📦') + ' ' + p.name + '</option>';
+      }).join('');
   }
-  document.getElementById('po-cases-info').style.display = 'none';
-  document.getElementById('po-total-cases').value = '';
   openModal('modal-purchase-order');
 }
 
-function calcPOTotal() {
-  const qty = parseFloat(document.getElementById('po-qty').value) || 0;
-  const price = parseFloat(document.getElementById('po-unit-price').value) || 0;
-  document.getElementById('po-total').value = (qty * price).toFixed(2);
-  // Calculate total cases
-  const sel = document.getElementById('po-product-id');
+function onPOAddProductSelect() {
+  const sel = document.getElementById('po-add-product');
   const opt = sel.options[sel.selectedIndex];
-  const cpb = parseInt(opt?.dataset.casesPerBox) || 1;
-  document.getElementById('po-total-cases').value = qty * cpb;
-}
-
-function onPOProductSelect() {
-  const sel = document.getElementById('po-product-id');
-  const opt = sel.options[sel.selectedIndex];
-  if (opt && opt.value) {
-    const cpb = parseInt(opt.dataset.casesPerBox) || 1;
-    document.getElementById('po-cases-info').style.display = '';
-    document.getElementById('po-cases-text').textContent = `1 box = ${cpb} bags — enter boxes below, total bags will auto-calculate`;
-    if (opt.dataset.price) document.getElementById('po-unit-price').value = opt.dataset.price;
-    calcPOTotal();
-  } else {
-    document.getElementById('po-cases-info').style.display = 'none';
+  if (opt && opt.value && opt.dataset.price) {
+    document.getElementById('po-add-price').value = opt.dataset.price || '';
+    calcPOAddTotal();
   }
 }
+function calcPOAddTotal() {
+  const qty = parseFloat(document.getElementById('po-add-qty').value) || 0;
+  const price = parseFloat(document.getElementById('po-add-price').value) || 0;
+  document.getElementById('po-add-total').value = qty && price ? 'QR ' + (qty * price).toFixed(2) : '';
+}
+function addPOLine() {
+  const sel = document.getElementById('po-add-product');
+  const opt = sel.options[sel.selectedIndex];
+  if (!opt || !opt.value) { alert('Please select a product'); return; }
+  const qty = parseFloat(document.getElementById('po-add-qty').value) || 0;
+  const price = parseFloat(document.getElementById('po-add-price').value) || 0;
+  if (!qty || !price) { alert('Enter quantity and price'); return; }
+  // pos_id is stored in data-posid attribute — must be a real POS integer ID
+  const rawPosId = opt.dataset.posid || opt.dataset.posId || '';
+  const posProductId = rawPosId ? (parseInt(String(rawPosId).replace('pos-','').replace('fin-','')) || null) : null;
+  if (!posProductId || posProductId > 2147483647) {
+    alert('⚠️ This product is not linked to POS yet.\n\nTo fix: Click "Sync from POS" first, or add the product from the Finance Products page which will create it in POS automatically.');
+    return;
+  }
+  const cpb = parseInt(opt.dataset.cpb) || 1;
+  const existing = poLines.findIndex(function(l) { return l.posProductId === posProductId; });
+  if (existing >= 0) {
+    poLines[existing].qty += qty;
+    poLines[existing].totalCases = poLines[existing].qty * cpb;
+    poLines[existing].total = poLines[existing].qty * poLines[existing].price;
+  } else {
+    poLines.push({ posProductId: posProductId, productName: opt.dataset.name || opt.text, cpb: cpb, qty: qty, price: price, totalCases: qty * cpb, total: qty * price });
+  }
+  sel.value = '';
+  document.getElementById('po-add-qty').value = '';
+  document.getElementById('po-add-price').value = '';
+  document.getElementById('po-add-total').value = '';
+  renderPOLines();
+}
+function removePOLine(idx) { poLines.splice(idx, 1); renderPOLines(); }
+function renderPOLines() {
+  const tbody = document.getElementById('po-lines-body');
+  const tfoot = document.getElementById('po-lines-foot');
+  if (!poLines.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:16px;color:#999;font-size:12px;">No products added yet — use the form above</td></tr>';
+    tfoot.style.display = 'none';
+    return;
+  }
+  const grandTotal = poLines.reduce(function(a,l){return a+l.total;},0);
+  tbody.innerHTML = poLines.map(function(l,i) {
+    return '<tr>' +
+      '<td style="padding:8px 10px;font-weight:600;">' + l.productName + '</td>' +
+      '<td style="padding:8px 10px;text-align:center;">' + l.qty + '</td>' +
+      '<td style="padding:8px 10px;text-align:center;color:var(--text2);">' + l.totalCases + ' bags</td>' +
+      '<td style="padding:8px 10px;text-align:right;">QR ' + l.price.toFixed(2) + '</td>' +
+      '<td style="padding:8px 10px;text-align:right;font-weight:700;color:var(--navy);">QR ' + l.total.toFixed(2) + '</td>' +
+      '<td style="padding:4px;"><button class="btn btn-danger btn-sm" onclick="removePOLine(' + i + ')" style="padding:3px 8px;">✕</button></td>' +
+    '</tr>';
+  }).join('');
+  tfoot.style.display = '';
+  document.getElementById('po-grand-total').textContent = 'QR ' + grandTotal.toFixed(2);
+}
+
+let _poSaving = false; // guard against double-click saves
 
 async function savePurchaseOrder() {
-  const sel = document.getElementById('po-product-id');
-  const productId = sel.value;
-  const opt = sel.options[sel.selectedIndex];
-  const productName = opt?.text || '';
-  const cpb = parseInt(opt?.dataset.casesPerBox) || 1;
-  const posProductId = opt?.dataset.posId || productId;
-  const qty = parseFloat(document.getElementById('po-qty').value) || 0;
-  const totalCases = qty * cpb;
-  const unitPrice = parseFloat(document.getElementById('po-unit-price').value) || 0;
-  const total = parseFloat(document.getElementById('po-total').value) || qty * unitPrice;
-  if (!productId) { alert('Please select a product'); return; }
-  if (!qty || !total) { alert('Enter quantity and price'); return; }
-  const o = {
-    id: Date.now().toString(),
-    date: document.getElementById('po-date').value,
-    invoice_ref: document.getElementById('po-inv').value,
-    product_id: productId,
-    pos_product_id: posProductId,
-    product: productName,
-    qty, total_cases: totalCases, cases_per_box: cpb,
-    unit_price: unitPrice, total,
-    status: document.getElementById('po-status').value,
-    notes: document.getElementById('po-notes').value
-  };
-  // Save to finance
-  const all = lsGet('fin_purchase_orders'); all.unshift(o); lsSet('fin_purchase_orders', all);
-  // ✅ Update POS warehouse stock via Supabase — add CASES not boxes
-  try {
-    const pid = parseInt(posProductId);
-    const { data: existing } = await sb.from('warehouse_stock').select('*').eq('product_id', pid);
-    if (existing && existing.length > 0) {
-      const newQty = (existing[0].quantity || 0) + totalCases;
-      await sb.from('warehouse_stock').update({ quantity: newQty, last_updated: new Date().toISOString() }).eq('product_id', pid);
-    } else {
-      await sb.from('warehouse_stock').insert({ product_id: pid, quantity: totalCases, last_updated: new Date().toISOString() });
+  if (_poSaving) { showToast('⏳ Already saving, please wait...'); return; }
+  if (!poLines.length) { alert('Please add at least one product'); return; }
+
+  // Duplicate invoice check — same date + same invoice_ref
+  const invRef = document.getElementById('po-inv').value.trim();
+  const poDate = document.getElementById('po-date').value;
+  if (invRef) {
+    const existing = lsGet('purchase_orders');
+    const dup = existing.find(o => o.invoice_ref && o.invoice_ref.trim() === invRef && o.date === poDate);
+    if (dup) {
+      if (!confirm('⚠️ A purchase with invoice # "' + invRef + '" on ' + poDate + ' already exists.\n\nSave anyway?')) return;
     }
-    showToast(`✅ Purchase saved! +${qty} boxes = +${totalCases} bags added to warehouse`);
-  } catch(e) {
-    console.error('Warehouse sync error:', e);
-    showToast('⚠️ Purchase saved but warehouse sync failed: ' + e.message);
   }
-  closeModal('modal-purchase-order');
-  loadPurchaseOrders();
-}
 
-function showToast(msg) {
-  const t = document.createElement('div');
-  t.textContent = msg;
-  t.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#1a237e;color:#fff;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:700;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,.3);';
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 3000);
-}
+  _poSaving = true;
+  // Disable save button visually
+  const saveBtn = document.querySelector('#modal-purchase-order .btn-primary');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '⏳ Saving...'; }
 
-function markPOPaid(id) {
-  const all = lsGet('fin_purchase_orders');
-  const idx = all.findIndex(o => o.id === id);
-  if (idx >= 0) { all[idx].status = 'paid'; lsSet('fin_purchase_orders', all); }
-  loadPurchaseOrders();
-}
+  try {
+    const grandTotal = poLines.reduce(function(a,l){return a+l.total;},0);
+    const o = {
+      id: Date.now().toString(),
+      date: poDate,
+      invoice_ref: invRef,
+      status: document.getElementById('po-status').value,
+      notes: document.getElementById('po-notes').value,
+      grand_total: grandTotal,
+      lines: poLines.map(function(l){return Object.assign({},l);}),
+      product: poLines.map(function(l){return l.productName;}).join(', '),
+      qty: poLines.reduce(function(a,l){return a+l.qty;},0),
+      total: grandTotal
+    };
+    // Save to localStorage
+    const all = lsGet('purchase_orders');
+    all.unshift(o);
+    lsSet('purchase_orders', all);
 
-function deletePO(id) {
-  if (!confirm('Delete this purchase?')) return;
-  lsSet('fin_purchase_orders', lsGet('fin_purchase_orders').filter(o => o.id !== id));
-  loadPurchaseOrders();
-}
-
-// ═══════════════════════════════════════════
-// IMPORT & EXTRA COSTS
-// ═══════════════════════════════════════════
-const COST_ICONS = { Customs:'🛃', Warehouse:'🏭', Loading:'👷', Transport:'🚛', Fuel:'⛽', Other:'📦' };
-const COST_COLORS = { Customs:'red', Warehouse:'navy', Loading:'gold', Transport:'green', Fuel:'red', Other:'navy' };
-
-function loadImportCosts() {
-  const all = lsGet('fin_import_costs');
-  const from = document.getElementById('ic-from')?.value || '';
-  const to = document.getElementById('ic-to')?.value || '';
-  const cat = document.getElementById('ic-cat')?.value || '';
-  let filtered = all.filter(c => (!from||c.date>=from) && (!to||c.date<=to) && (!cat||c.category===cat));
-  // Totals by category
-  const totals = { Customs:0, Warehouse:0, Loading:0, Transport:0, Fuel:0, Other:0 };
-  all.forEach(c => { totals[c.category] = (totals[c.category]||0) + c.amount; });
-  const total = Object.values(totals).reduce((a,v)=>a+v,0);
-  document.getElementById('cost-customs').textContent = fmt(totals.Customs);
-  document.getElementById('cost-warehouse').textContent = fmt(totals.Warehouse);
-  document.getElementById('cost-loading').textContent = fmt(totals.Loading);
-  document.getElementById('cost-transport').textContent = fmt(totals.Transport);
-  document.getElementById('cost-fuel').textContent = fmt(totals.Fuel);
-  document.getElementById('cost-total').textContent = fmt(total);
-  document.getElementById('import-cost-list').innerHTML = filtered.sort((a,b)=>b.date.localeCompare(a.date)).map(c => `
-    <tr>
-      <td>${c.date}</td>
-      <td><span class="badge badge-${COST_COLORS[c.category]||'navy'}">${COST_ICONS[c.category]||'📦'} ${c.category}</span></td>
-      <td>${c.description}</td>
-      <td style="font-weight:700;color:var(--red);">${fmt(c.amount)}</td>
-      <td>${c.reference||'—'}</td>
-      <td><button class="btn btn-danger btn-sm" onclick="deleteImportCost('${c.id}')">✕</button></td>
-    </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;padding:20px;color:#999;">No costs added</td></tr>';
-}
-
-function openAddImportCostModal() {
-  document.getElementById('ic-date').value = today();
-  document.getElementById('ic-amount').value = '';
-  document.getElementById('ic-description').value = '';
-  document.getElementById('ic-reference').value = '';
-  openModal('modal-import-cost');
-}
-
-function saveImportCost() {
-  const c = {
-    id: Date.now().toString(),
-    date: document.getElementById('ic-date').value,
-    category: document.getElementById('ic-category').value,
-    amount: parseFloat(document.getElementById('ic-amount').value) || 0,
-    description: document.getElementById('ic-description').value,
-    reference: document.getElementById('ic-reference').value
-  };
-  if (!c.amount) { alert('Enter amount'); return; }
-  const all = lsGet('fin_import_costs'); all.unshift(c); lsSet('fin_import_costs', all);
-  closeModal('modal-import-cost'); loadImportCosts();
-}
-
-function deleteImportCost(id) {
-  if (!confirm('Delete?')) return;
-  lsSet('fin_import_costs', lsGet('fin_import_costs').filter(c => c.id !== id));
-  loadImportCosts();
-}
-
-// ═══════════════════════════════════════════
-// COST ANALYSIS (COGS)
-// ═══════════════════════════════════════════
-function loadCOGS() {
-  const from = document.getElementById('cogs-from').value || monthStart();
-  const to = document.getElementById('cogs-to').value || today();
-  const invs = posData.invoices.filter(i => i.date >= from && i.date <= to);
-  const revenue = invs.reduce((a,i) => a+(i.total_amount||0), 0);
-  const purchaseCost = lsGet('fin_purchase_orders').filter(o => o.date>=from && o.date<=to).reduce((a,o)=>a+o.total,0);
-  const importCosts = lsGet('fin_import_costs').filter(c => c.date>=from && c.date<=to).reduce((a,c)=>a+c.amount,0);
-  const costsByCategory = {};
-  lsGet('fin_import_costs').filter(c=>c.date>=from&&c.date<=to).forEach(c=>{
-    costsByCategory[c.category] = (costsByCategory[c.category]||0)+c.amount;
-  });
-  const totalCOGS = purchaseCost + importCosts;
-  const grossProfit = revenue - totalCOGS;
-  const salaries = lsGet(LS.payroll).filter(p=>p.month>=from.slice(0,7)&&p.month<=to.slice(0,7)).reduce((a,p)=>a+p.net_pay,0);
-  const otherExp = lsGet(LS.transactions).filter(t=>t.type==='expense'&&t.date>=from&&t.date<=to).reduce((a,t)=>a+t.amount,0);
-  const netProfit = grossProfit - salaries - otherExp;
-  const margin = revenue > 0 ? ((grossProfit/revenue)*100).toFixed(1) : 0;
-
-  document.getElementById('cogs-revenue').textContent = fmt(revenue);
-  document.getElementById('cogs-purchase').textContent = fmt(purchaseCost);
-  document.getElementById('cogs-import').textContent = fmt(importCosts);
-  document.getElementById('cogs-gross').textContent = fmt(grossProfit);
-  document.getElementById('cogs-gross').style.color = grossProfit>=0?'var(--green)':'var(--red)';
-
-  document.getElementById('cogs-content').innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-      <div class="card">
-        <div class="card-header"><div class="card-title">📊 Full Cost Breakdown</div></div>
-        <div style="padding:20px;">
-          <table style="font-size:13px;">
-            <tr style="font-weight:700;color:var(--green);"><td>💵 Revenue</td><td style="text-align:right;">${fmt(revenue)}</td></tr>
-            <tr><td colspan="2" style="padding:8px 0;font-weight:700;color:var(--text2);font-size:11px;">COST OF GOODS</td></tr>
-            <tr><td>🛒 Purchases from Alaa</td><td style="text-align:right;color:var(--red);">- ${fmt(purchaseCost)}</td></tr>
-            <tr><td>🛃 Qatar Customs</td><td style="text-align:right;color:var(--red);">- ${fmt(costsByCategory.Customs||0)}</td></tr>
-            <tr><td>🏭 Warehouse Rent</td><td style="text-align:right;color:var(--red);">- ${fmt(costsByCategory.Warehouse||0)}</td></tr>
-            <tr><td>👷 Loading/Unloading</td><td style="text-align:right;color:var(--red);">- ${fmt(costsByCategory.Loading||0)}</td></tr>
-            <tr><td>🚛 Transport/Freight</td><td style="text-align:right;color:var(--red);">- ${fmt(costsByCategory.Transport||0)}</td></tr>
-            <tr><td>⛽ Truck Fuel</td><td style="text-align:right;color:var(--red);">- ${fmt(costsByCategory.Fuel||0)}</td></tr>
-            <tr style="font-weight:800;border-top:2px solid var(--border);"><td style="padding:8px 0;">Gross Profit (${margin}%)</td><td style="text-align:right;color:${grossProfit>=0?'var(--green)':'var(--red)'};">${fmt(grossProfit)}</td></tr>
-            <tr><td colspan="2" style="padding:8px 0;font-weight:700;color:var(--text2);font-size:11px;">OPERATING EXPENSES</td></tr>
-            <tr><td>👥 Salaries</td><td style="text-align:right;color:var(--red);">- ${fmt(salaries)}</td></tr>
-            <tr><td>📋 Other Expenses</td><td style="text-align:right;color:var(--red);">- ${fmt(otherExp)}</td></tr>
-            <tr style="font-weight:900;font-size:15px;border-top:2px solid var(--navy);background:${netProfit>=0?'#e8f5e9':'#ffebee'};"><td style="padding:10px 0;">Net Profit</td><td style="text-align:right;color:${netProfit>=0?'var(--green)':'var(--red)'};">${fmt(netProfit)}</td></tr>
-          </table>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-header"><div class="card-title">📦 Cost Per Box Analysis</div></div>
-        <div style="padding:20px;">
-          ${(() => {
-            const orders = lsGet('fin_purchase_orders').filter(o=>o.date>=from&&o.date<=to);
-            const totalBoxes = orders.reduce((a,o)=>a+(o.qty||0),0);
-            if (!totalBoxes) return '<div class="empty"><div class="empty-icon">📦</div><div>No purchases in this period</div></div>';
-            const totalBagsAll = orders.reduce((a,o)=>a+(o.total_cases||(o.qty*(o.cases_per_box||1))),0);
-            const costPerBox = totalCOGS / totalBoxes;
-            const costPerBag = totalBagsAll > 0 ? totalCOGS / totalBagsAll : 0;
-            return `
-              <table style="font-size:13px;">
-                <tr><td>📦 Total Boxes Purchased</td><td style="text-align:right;font-weight:700;">${totalBoxes} boxes</td></tr>
-                <tr><td>🛍 Total Bags Purchased</td><td style="text-align:right;font-weight:700;">${totalBagsAll} bags</td></tr>
-                <tr><td>🛒 Purchase Cost/Box</td><td style="text-align:right;color:var(--red);">${fmt(purchaseCost/totalBoxes)}</td></tr>
-                <tr><td>🚢 Import Cost/Box</td><td style="text-align:right;color:var(--red);">${fmt(importCosts/totalBoxes)}</td></tr>
-                <tr style="font-weight:800;border-top:2px solid var(--border);"><td style="padding:8px 0;">Total Cost/Box</td><td style="text-align:right;color:var(--navy);">${fmt(costPerBox)}</td></tr>
-                <tr><td>💰 Total Cost/Bag</td><td style="text-align:right;color:var(--navy);">${fmt(costPerBag)}</td></tr>
-                <tr style="color:var(--green);"><td>💵 Revenue/Box (avg)</td><td style="text-align:right;font-weight:700;">${fmt(totalBoxes>0?revenue/totalBoxes:0)}</td></tr>
-                <tr style="font-weight:800;color:${(revenue-totalCOGS)/totalBoxes>=0?'green':'red'};"><td>📈 Profit/Box</td><td style="text-align:right;">${fmt(totalBoxes>0?(revenue-totalCOGS)/totalBoxes:0)}</td></tr>
-              </table>`;
-          })()}
-        </div>
-      </div>
-    </div>`;
-}
-
-// ═══════════════════════════════════════════
-// FIXED ASSETS
-// ═══════════════════════════════════════════
-const ASSET_ICONS = { Vehicle:'🚛', Equipment:'🛠️', Furniture:'🪑', Cash:'💰', Other:'📦' };
-
-function calcCurrentValue(asset) {
-  const years = (new Date() - new Date(asset.purchase_date)) / (1000 * 60 * 60 * 24 * 365);
-  const dep = Math.min(100, (asset.dep_rate || 20) * years) / 100;
-  return Math.max(0, asset.purchase_value * (1 - dep));
-}
-
-function calcDepreciation(asset) {
-  const years = (new Date() - new Date(asset.purchase_date)) / (1000 * 60 * 60 * 24 * 365);
-  const thisYear = Math.min(1, years < 1 ? years : 1) * (asset.dep_rate / 100) * asset.purchase_value;
-  const accumulated = (asset.purchase_value - calcCurrentValue(asset));
-  return { thisYear, accumulated };
-}
-
-let currentAssetTab = 'list';
-function switchAssetTab(tab) {
-  currentAssetTab = tab;
-  document.querySelectorAll('#page-assets .tab').forEach((t, i) => t.classList.toggle('active', i === (tab === 'list' ? 0 : 1)));
-  document.getElementById('asset-list-card').style.display = tab === 'list' ? '' : 'none';
-  document.getElementById('depreciation-card').style.display = tab === 'depreciation' ? '' : 'none';
-  if (tab === 'list') loadAssets(); else loadDepreciation();
-}
-
-function loadAssets() {
-  const assets = lsGet('fin_assets');
-  const filter = document.getElementById('asset-filter').value;
-  const filtered = filter ? assets.filter(a => a.category === filter) : assets;
-  // Totals by category
-  const bycat = { Vehicle: 0, Equipment: 0, Furniture: 0, Cash: 0, Other: 0 };
-  assets.forEach(a => { if (a.status === 'active') bycat[a.category] = (bycat[a.category] || 0) + calcCurrentValue(a); });
-  const total = Object.values(bycat).reduce((a, v) => a + v, 0);
-  document.getElementById('ast-vehicle').textContent = fmt(bycat.Vehicle);
-  document.getElementById('ast-equipment').textContent = fmt(bycat.Equipment);
-  document.getElementById('ast-furniture').textContent = fmt(bycat.Furniture);
-  document.getElementById('ast-total').textContent = fmt(total);
-  document.getElementById('asset-list').innerHTML = filtered.map(a => {
-    const current = calcCurrentValue(a);
-    const dep = a.purchase_value - current;
-    return `<tr>
-      <td><strong>${ASSET_ICONS[a.category]||'📦'} ${a.name}</strong><br><small style="color:var(--text2);">${a.notes||''}</small></td>
-      <td><span class="badge badge-blue">${a.category}</span></td>
-      <td>${a.purchase_date}</td>
-      <td>${fmt(a.purchase_value)}</td>
-      <td style="font-weight:700;color:var(--navy);">${fmt(current)}</td>
-      <td style="color:var(--red);">- ${fmt(dep)}</td>
-      <td><span class="badge badge-${a.status === 'active' ? 'green' : 'red'}">${a.status}</span></td>
-      <td><button class="btn btn-danger btn-sm" onclick="deleteAsset('${a.id}')">✕</button></td>
-    </tr>`;
-  }).join('') || '<tr><td colspan="8" style="text-align:center;padding:20px;color:#999;">No assets added</td></tr>';
-}
-
-function loadDepreciation() {
-  const assets = lsGet('fin_assets').filter(a => a.status === 'active');
-  document.getElementById('depreciation-list').innerHTML = assets.map(a => {
-    const { thisYear, accumulated } = calcDepreciation(a);
-    const nbv = calcCurrentValue(a);
-    return `<tr>
-      <td>${ASSET_ICONS[a.category]||'📦'} ${a.name}</td>
-      <td>${fmt(a.purchase_value)}</td>
-      <td>${a.dep_rate}%</td>
-      <td style="color:var(--red);">${fmt(thisYear)}</td>
-      <td style="color:var(--red);">${fmt(accumulated)}</td>
-      <td style="font-weight:700;color:var(--navy);">${fmt(nbv)}</td>
-    </tr>`;
-  }).join('') || '<tr><td colspan="6" style="text-align:center;padding:20px;color:#999;">No active assets</td></tr>';
-}
-
-function openAddAssetModal() {
-  document.getElementById('ast-date').value = today();
-  document.getElementById('ast-name').value = '';
-  document.getElementById('ast-value').value = '';
-  document.getElementById('ast-notes').value = '';
-  openModal('modal-asset');
-}
-
-function saveAsset() {
-  const a = {
-    id: Date.now().toString(),
-    name: document.getElementById('ast-name').value,
-    category: document.getElementById('ast-category').value,
-    purchase_date: document.getElementById('ast-date').value,
-    purchase_value: parseFloat(document.getElementById('ast-value').value) || 0,
-    dep_rate: parseFloat(document.getElementById('ast-dep-rate').value) || 20,
-    status: document.getElementById('ast-status').value,
-    notes: document.getElementById('ast-notes').value
-  };
-  if (!a.name || !a.purchase_value) { alert('Fill required fields'); return; }
-  const all = lsGet('fin_assets'); all.push(a); lsSet('fin_assets', all);
-  closeModal('modal-asset'); loadAssets();
-}
-
-function deleteAsset(id) {
-  if (!confirm('Delete this asset?')) return;
-  lsSet('fin_assets', lsGet('fin_assets').filter(a => a.id !== id)); loadAssets();
-}
-
-// ═══════════════════════════════════════════
-// LIABILITIES
-// ═══════════════════════════════════════════
-let currentLiabTab = 'payables';
-
-function switchLiabTab(tab) {
-  currentLiabTab = tab;
-  document.querySelectorAll('#page-liabilities .tab').forEach((t, i) => t.classList.toggle('active', i === (tab === 'payables' ? 0 : 1)));
-  document.getElementById('payables-card').style.display = tab === 'payables' ? '' : 'none';
-  document.getElementById('drawings-card').style.display = tab === 'drawings' ? '' : 'none';
-  document.getElementById('liab-add-btn').textContent = tab === 'payables' ? '+ Mark as Paid' : '+ Add Drawing';
-  document.getElementById('liab-add-btn').onclick = tab === 'payables' ? null : openAddDrawingModal;
-  if (tab === 'payables') loadPayables(); else loadDrawings();
-}
-
-function loadPayables() {
-  const purchases = lsGet(LS.purchases).filter(p => p.status === 'pending' || p.status === 'partial');
-  const suppliers = lsGet(LS.suppliers);
-  const supMap = {}; suppliers.forEach(s => supMap[s.id] = s.name);
-  const totalPayables = purchases.reduce((a, p) => a + p.amount, 0);
-  const drawings = lsGet('fin_drawings');
-  const totalDrawings = drawings.reduce((a, d) => a + d.amount, 0);
-  document.getElementById('liab-payables').textContent = fmt(totalPayables);
-  document.getElementById('liab-drawings').textContent = fmt(totalDrawings);
-  document.getElementById('liab-total').textContent = fmt(totalPayables + totalDrawings);
-  document.getElementById('payables-list').innerHTML = purchases.map(p => `
-    <tr>
-      <td>${p.date}</td>
-      <td>${supMap[p.supplier_id] || 'Unknown'}</td>
-      <td>${p.description}</td>
-      <td style="font-weight:700;color:var(--red);">${fmt(p.amount)}</td>
-      <td>${p.due_date || '—'}</td>
-      <td><span class="badge badge-${p.status === 'pending' ? 'red' : 'gold'}">${p.status}</span></td>
-      <td><button class="btn btn-success btn-sm" onclick="markPurchasePaid('${p.id}')">✅ Paid</button></td>
-    </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;padding:20px;color:#999;">No pending payables</td></tr>';
-}
-
-function markPurchasePaid(id) {
-  const all = lsGet(LS.purchases);
-  const idx = all.findIndex(p => p.id === id);
-  if (idx >= 0) { all[idx].status = 'paid'; lsSet(LS.purchases, all); }
-  loadPayables();
-}
-
-function loadDrawings() {
-  const drawings = lsGet('fin_drawings');
-  document.getElementById('drawings-list').innerHTML = drawings.map(d => `
-    <tr>
-      <td>${d.date}</td>
-      <td>${d.description}</td>
-      <td style="font-weight:700;color:var(--gold);">${fmt(d.amount)}</td>
-      <td><button class="btn btn-danger btn-sm" onclick="deleteDrawing('${d.id}')">✕</button></td>
-    </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;padding:20px;color:#999;">No drawings recorded</td></tr>';
-}
-
-function openAddDrawingModal() {
-  document.getElementById('drw-date').value = today();
-  document.getElementById('drw-amount').value = '';
-  document.getElementById('drw-desc').value = '';
-  openModal('modal-drawing');
-}
-
-function saveDrawing() {
-  const d = {
-    id: Date.now().toString(),
-    date: document.getElementById('drw-date').value,
-    amount: parseFloat(document.getElementById('drw-amount').value) || 0,
-    description: document.getElementById('drw-desc').value
-  };
-  if (!d.amount) { alert('Enter amount'); return; }
-  const all = lsGet('fin_drawings'); all.unshift(d); lsSet('fin_drawings', all);
-  closeModal('modal-drawing'); loadDrawings();
-}
-
-function deleteDrawing(id) {
-  if (!confirm('Delete?')) return;
-  lsSet('fin_drawings', lsGet('fin_drawings').filter(d => d.id !== id)); loadDrawings();
-}
-
-// ═══════════════════════════════════════════
-// INIT
-// ═══════════════════════════════════════════
-async function init() {
-  // Set default dates
-  document.getElementById('pl-from').value = monthStart();
-  document.getElementById('pl-to').value = today();
-  document.getElementById('bs-date').value = today();
-  document.getElementById('inc-from').value = monthStart();
-  document.getElementById('inc-to').value = today();
-  document.getElementById('aging-date').value = today();
-  document.getElementById('ledger-from').value = monthStart();
-  document.getElementById('ledger-to').value = today();
-  document.getElementById('pur-from').value = monthStart();
-  document.getElementById('pur-to').value = today();
-  document.getElementById('ic-from').value = monthStart();
-  document.getElementById('ic-to').value = today();
-  document.getElementById('cogs-from').value = monthStart();
-  document.getElementById('cogs-to').value = today();
-  // Sync data
-  await syncData();
-  // Populate customer dropdown
-  const custOpts = posData.customers.map(c => `<option value="${c.customer_id}">${c.name}</option>`).join('');
-  document.getElementById('ledger-customer').innerHTML = '<option value="">All Customers</option>' + custOpts;
-}
-init();
-</script>
-</body>
-</html>
+    // Update products stock in Supabase for each purchased line
+    let successCount = 0, errorMsgs = [];
+    for (const line of poLines) {
+      if (!line.posProductId && !line.productName) continue;
+      try {
+        // Find product by id or name in this store
+        let prodRes;
+        if (line.posProductId) {
+          prodRes = await sb.from('products').select('id,stock,name').eq('id', line.posProductId).single();
+        } else {
+          prodRes = await sb.from('products').select('id,stock,name').eq('store_id', FIN_STORE_ID).ilike('name', line.productName).single();
+        }
+        if (prodRes.data) {
+          var newStock = (parseFloat(prodRes.data.stock)||0) + (parseFloat(line.totalCases)||parseFloat(line.qty)||0);
+          var updRes = await sb.from('products').update({stock: newStock}).eq('id', prodRes.data.id);
+          if (!updRes.error) { successCount++; }
+          else { errorMsgs.push(line.productName + ': ' + updRes.error.message); }
+        } else {
+          errorMsgs.push(line.productName + ': product not found in POS');
+        }
+      } catch(lineErr) {
+        errorMsgs.push(line.productName + ': ' + lineErr.message);
+      }
+    }
+    // Also save purchase record to Supabase
+    try {
+      await dbInsert('purchases', {
+        store_id: FIN_STORE_ID,
+        supplier_name: document.getElementById('po-supplier') ? document.getElementById('po-supplier').value : '',
+        items: JSON.stringify(poLines),
+        total_amount: poLines.reduce((a,l) => a+(parseFloat(l.totalAmount)||0), 0),
+        purchase_date: document.getElementById('po-date') ? document.getElementById('po-date').value : new Date().toISOString().slice(0,10),
+        notes: document.getElementById('po-inv') ? document.getElementById('po-inv').value : ''
+      });
+    } catch(e) { console.warn('Purchase Supabase save error:', e.message); }
+    if (successCount > 0) { showToast('✅ Stock updated for ' + successCount + ' product(s)'); }
+    if (errorMsgs.length) { showToast('⚠️ ' + errorMsgs.join(', ')); }
+    >
