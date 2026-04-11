@@ -2527,26 +2527,14 @@ function poLineProduct(idx, val) {
   renderPOLines();
 }
 function poLineQty(idx, val) {
-  poLines[idx].qty = parseFloat(val) || 0;
-  poLines[idx].total = (poLines[idx].qty) * (poLines[idx].unitPrice || 0);
-  updatePOTotal();
-  // Update the total display for this row without full re-render
-  var rows = document.querySelectorAll('#po-lines > div');
-  if (rows[idx]) {
-    var totalDiv = rows[idx].querySelector('div');
-    if (totalDiv) totalDiv.textContent = 'QR ' + poLines[idx].total.toFixed(3);
-  }
+  poLines[idx].qty = parseFloat(val) || 1;
+  poLines[idx].total = poLines[idx].qty * (poLines[idx].unitPrice || 0);
+  renderPOLines();
 }
 function poLinePrice(idx, val) {
   poLines[idx].unitPrice = parseFloat(val) || 0;
   poLines[idx].total = (poLines[idx].qty || 1) * poLines[idx].unitPrice;
-  updatePOTotal();
-  // Update the total display for this row without full re-render
-  var rows = document.querySelectorAll('#po-lines > div');
-  if (rows[idx]) {
-    var totalDiv = rows[idx].querySelector('div');
-    if (totalDiv) totalDiv.textContent = 'QR ' + poLines[idx].total.toFixed(3);
-  }
+  renderPOLines();
 }
 function updatePOTotal() {
   var total = poLines.reduce(function(a,l){ return a + (l.total||0); }, 0);
@@ -2605,7 +2593,7 @@ async function savePurchaseOrder() {
         console.log('Product fetch result:', res.data, res.error);
         if (!res.error && res.data) {
           var currentStock = parseFloat(res.data.stock) || 0;
-          var cpbUsed = parseInt(line.cpb) || 4; // default 4 units per box
+          var cpbUsed = 4; // always 4 units per box (standard box size)
           var addUnits = (parseFloat(line.qty) || 0) * cpbUsed;
           console.log('Stock add:', line.qty, 'boxes ×', cpbUsed, '=', addUnits, 'units');
           // User enters units directly
