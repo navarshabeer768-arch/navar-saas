@@ -1819,6 +1819,15 @@ async function dbGetByIndex(table, col, val) {
   return (localCache[table] || []).filter(r => r[col] == val);
 }
 
+// Columns not in Supabase schema - stripped before insert/update
+const REMOVE_COLUMNS = {
+  customers: ['contact_person','address','notes','credit_limit'],
+  expenses: ['notes','tags','receipt'],
+  invoices: ['cash_paid','change_amount','salesman','invoice_items'],
+  products: ['cases_per_box','low_stock_threshold','icon','cost_price','selling_price','stock_quantity','product_id']
+};
+
+
 async function dbAdd(table, data) {
   const pk = getPK(table);
   // Sanitize input data to remove any non-cloneable objects
@@ -2569,7 +2578,6 @@ async function completeOrder() {
       date: dateStr,
       total_amount: total,
       payment_type: payType,
-      cash_paid: cashPaid,
       discount: discount,
       created_at: now.toISOString()
     };
@@ -2584,8 +2592,11 @@ async function completeOrder() {
     // Insert invoice — try with salesman_name, fallback without if column missing
     let invId = null;
     try {
+      // Strip columns not in Supabase schema before insert
+      const cleanInvoiceData = {...invoiceData};
+      ['cash_paid','change_amount','salesman','invoice_items','time'].forEach(c => delete cleanInvoiceData[c]);
       const result = await Promise.race([
-        sb.from('invoices').insert(invoiceData).select().single(),
+        sb.from('invoices').insert(cleanInvoiceData).select().single(),
         new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 6000))
       ]);
       if (result?.error) {
@@ -6136,7 +6147,7 @@ async function loadTruckScreen() {
   list.innerHTML = products.map(p => {
     const cpb = getCasesPerBox(p);
     const truckQty = truckStock[p.product_id] || 0;
-    const whQty = parseFloat(whMap[p.id||p.product_id] || 0);
+    const whQty = parseFloat(whMap[p.id] || whMap[p.product_id] || p.stock || p.stock_quantity || 0);
     const truckFmt = fmtStock(truckQty, cpb);
     const whFmt = fmtStock(whQty, cpb);
     const imgHtml = p.photo ? `<img class="inv-photo" src="${p.photo}" alt="${p.name}">` : `<div class="inv-photo-placeholder">${p.icon||'📦'}</div>`;
@@ -7466,6 +7477,23 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
     if (e.target === overlay) overlay.classList.remove('open');
   });
 });
+
+// ── Inventory tab switching ──────────────────────────────────────
+function switchInvTab(tab) {
+  ['truck','warehouse','count'].forEach(function(t) {
+    var btn = document.getElementById('inv-tab-' + t);
+    if (btn) btn.classList.toggle('active', t === tab);
+  });
+  var invList = document.getElementById('inventory-list');
+  var countSec = document.getElementById('stock-count-section');
+  if (tab === 'count') {
+    if (countSec) countSec.style.display = '';
+    if (invList) invList.style.display = 'none';
+  } else {
+    if (countSec) countSec.style.display = 'none';
+    if (invList) { invList.style.display = ''; loadInventory(); }
+  }
+}
 </script>
 <!-- Add Employee Modal -->
 <div class="modal-overlay" id="emp-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;align-items:flex-end;">
