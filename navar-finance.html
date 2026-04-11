@@ -1111,7 +1111,7 @@ function loadCurrentPage(page) {
   else if (page === 'income') loadTransactions();
   else if (page === 'suppliers') loadSuppliers();
   else if (page === 'salaries') loadEmployees();
-  else if (page === 'products') loadProducts();
+  else if (page === 'products') syncData().then(loadProducts);
   else if (page === 'purchases') loadPurchaseOrders();
   else if (page === 'importcosts') loadImportCosts();
   else if (page === 'cogs') loadCOGS();
