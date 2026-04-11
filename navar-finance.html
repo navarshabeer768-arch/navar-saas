@@ -2470,7 +2470,7 @@ init();
 // ── PURCHASE ORDER (Multi-product invoice) ───────────────────
 
 function openAddPurchaseOrderModal() {
-  poLines = [{ productId:'', productName:'', qty:1, unitPrice:0, total:0 }];
+  poLines = [{ productId:'', productName:'', qty:1, unitPrice:0, total:0, cpb:4 }];
   document.getElementById('po-date').value = today();
   document.getElementById('po-inv').value = '';
   document.getElementById('po-supplier').value = '';
@@ -2503,7 +2503,7 @@ function renderPOLines() {
     var totalVal = (parseFloat(line.qty)||0) * (parseFloat(line.unitPrice)||0);
     line.total = totalVal;
     var cpbVal = line.cpb || 4;
-    html += '<div style="display:grid;grid-template-columns:2fr 70px 60px 100px 90px 32px;gap:5px;margin-bottom:6px;align-items:center;">' +
+    html += '<div style="display:grid;grid-template-columns:2fr 80px 100px 80px 32px;gap:5px;margin-bottom:6px;align-items:center;">' +
       '<select class="form-select" style="font-size:.82rem;padding:5px 6px;" onchange="poLineProduct(' + idx + ',this.value)">' + opts + '</select>' +
       '<input type="number" class="form-input" style="font-size:.82rem;padding:5px;" value="' + (line.qty||1) + '" min="1" step="1" title="Boxes" placeholder="Boxes" oninput="poLineQty(' + idx + ',this.value)">' +
       '<input type="number" class="form-input" style="font-size:.82rem;padding:5px;background:var(--bg2);" value="' + cpbVal + '" min="1" step="1" title="Units/Box" placeholder="U/Box" oninput="poLineCpb(' + idx + ',this.value)">' +
@@ -2614,7 +2614,7 @@ async function savePurchaseOrder() {
         console.log('Product fetch result:', res.data, res.error);
         if (!res.error && res.data) {
           var currentStock = parseFloat(res.data.stock) || 0;
-          var cpbUsed = parseInt(line.cpb) || 4;
+          var cpbUsed = parseInt(line.cpb) || 4; // default 4 units per box
           var addUnits = (parseFloat(line.qty) || 0) * cpbUsed;
           console.log('Stock add:', line.qty, 'boxes ×', cpbUsed, '=', addUnits, 'units');
           // User enters units directly
