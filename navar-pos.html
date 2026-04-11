@@ -1748,7 +1748,7 @@ async function processOfflineQueue() {
 const localCache = {};
 
 // Tables that exist in our Supabase schema
-const VALID_TABLES = new Set(['products','customers','invoices','expenses','settings']);
+const VALID_TABLES = new Set(['products','customers','invoices','expenses']);
 
 async function dbGetAll(table) {
   // Skip tables that don't exist in our schema - return empty array silently
@@ -2140,39 +2140,15 @@ async function changePin() {
   showToast('✅ PIN changed successfully!');
 }
 async function loadSettingsObj() {
-  const keys = ['company','address','phone1','phone2','email'];
-  settings = {};
-  for (const k of keys) {
-    const row = await dbGet('settings', k);
-    settings[k] = row ? row.value : getDefaultSetting(k);
-  }
-  // Always override company with store name from SaaS if available
-  if (STORE_NAME && STORE_NAME !== 'Navar POS' && STORE_NAME !== 'default') {
-    settings['company'] = STORE_NAME;
-  }
-  // Update home screen name immediately
-  var snEl = document.getElementById('pos-store-name');
-  if (snEl && settings['company']) snEl.textContent = settings['company'].toUpperCase();
-  var h1El = document.getElementById('pos-h1-name');
-  if (h1El && settings['company']) h1El.textContent = settings['company'].toUpperCase();
-  // Update logo letter to first letter of store name
-  var logoLetter = document.getElementById('pos-logo-letter');
-  if (logoLetter && settings['company']) logoLetter.textContent = settings['company'][0].toUpperCase();
-}
-function getDefaultSetting(k) {
-  const defaults = {
-    company: STORE_NAME || 'Navar POS',
-    address: '',
-    phone1: '',
-    phone2: '',
-    email: ''
-  };
-  return defaults[k] || '';
+  // Settings stored in localStorage only - no Supabase table for settings
+  try {
+    const stored = localStorage.getItem('navar_settings_' + STORE_ID);
+    if (stored) return JSON.parse(stored);
+  } catch(e) {}
+  return {};
 }
 
-// ═══════════════════════════════════════════════
-// HOME SUMMARY
-// ═══════════════════════════════════════════════
+
 async function updateHomeSummary() {
   const t = today();
   document.getElementById('home-date').textContent = fmtDate(t) + ' — Qatar Time';
@@ -4077,15 +4053,7 @@ async function saveProduct() {
       }
     }
   }
-  // Sync truck inventory
-  const invRows = await dbGetByIndex('inventory', 'product_id', productId);
-  if (invRows.length > 0) {
-    invRows[0].quantity = stockQty;
-    invRows[0].last_updated = new Date().toISOString();
-    await dbPut('inventory', invRows[0]);
-  } else {
-    await dbAdd('inventory', { product_id: productId, quantity: stockQty, last_updated: new Date().toISOString() });
-  }
+  // Note: inventory table not used - stock tracked in products.stock
   closeModal('product-modal');
   loadProducts();
   showToast('✅ Product saved!');
