@@ -811,7 +811,7 @@ tr:hover td{background:#f8f9ff;}
     <div style="margin:16px 0 8px;font-weight:700;font-size:.9rem;color:var(--text1);">Products</div>
     <div id="po-lines-container">
       <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 32px;gap:6px;margin-bottom:4px;font-size:.75rem;color:var(--text2);font-weight:600;">
-        <span>Product</span><span>Qty (Boxes)</span><span>Unit Price (QR)</span><span>Total</span><span></span>
+        <span>Product</span><span>Qty (Units)</span><span>Unit Price (QR)</span><span>Total</span><span></span>
       </div>
       <div id="po-lines"></div>
     </div>
@@ -2498,17 +2498,17 @@ function renderPOLines() {
   poLines.forEach(function(line, idx) {
     var opts = '<option value="">Select product...</option>' +
       prods.map(function(p) {
-        var cpb = parseInt(p.cases_per_box || 1);
-        var cpbText = cpb > 1 ? ' (' + cpb + ' units/box)' : '';
-        return '<option value="' + p.id + '"' + (String(p.id) === String(line.productId) ? ' selected' : '') + '>' + p.name + cpbText + '</option>';
+        return '<option value="' + p.id + '"' + (String(p.id) === String(line.productId) ? ' selected' : '') + '>' + p.name + '</option>';
       }).join('');
     var totalVal = (parseFloat(line.qty)||0) * (parseFloat(line.unitPrice)||0);
     line.total = totalVal;
-    html += '<div style="display:grid;grid-template-columns:2fr 80px 100px 90px 32px;gap:6px;margin-bottom:6px;align-items:center;">' +
-      '<select class="form-select" style="font-size:.82rem;padding:6px 8px;" onchange="poLineProduct(' + idx + ',this.value)">' + opts + '</select>' +
-      '<input type="number" class="form-input" style="font-size:.82rem;padding:6px;" value="' + (line.qty||1) + '" min="0.001" step="0.001" oninput="poLineQty(' + idx + ',this.value)">' +
-      '<input type="number" class="form-input" style="font-size:.82rem;padding:6px;" value="' + (line.unitPrice||0) + '" min="0" step="0.001" oninput="poLinePrice(' + idx + ',this.value)">' +
-      '<div style="font-size:.82rem;font-weight:700;padding:6px;background:var(--bg2);border-radius:6px;text-align:right;color:var(--text1);">QR ' + totalVal.toFixed(3) + '</div>' +
+    var cpbVal = line.cpb || 4;
+    html += '<div style="display:grid;grid-template-columns:2fr 70px 60px 100px 90px 32px;gap:5px;margin-bottom:6px;align-items:center;">' +
+      '<select class="form-select" style="font-size:.82rem;padding:5px 6px;" onchange="poLineProduct(' + idx + ',this.value)">' + opts + '</select>' +
+      '<input type="number" class="form-input" style="font-size:.82rem;padding:5px;" value="' + (line.qty||1) + '" min="1" step="1" title="Boxes" placeholder="Boxes" oninput="poLineQty(' + idx + ',this.value)">' +
+      '<input type="number" class="form-input" style="font-size:.82rem;padding:5px;background:var(--bg2);" value="' + cpbVal + '" min="1" step="1" title="Units/Box" placeholder="U/Box" oninput="poLineCpb(' + idx + ',this.value)">' +
+      '<input type="number" class="form-input" style="font-size:.82rem;padding:5px;" value="' + (line.unitPrice||0) + '" min="0" step="0.001" title="Price per box" oninput="poLinePrice(' + idx + ',this.value)">' +
+      '<div style="font-size:.82rem;font-weight:700;padding:5px;background:var(--bg2);border-radius:6px;text-align:right;color:var(--text1);">QR ' + totalVal.toFixed(2) + '</div>' +
       '<button onclick="removePOLine(' + idx + ')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:1.4rem;line-height:1;padding:0;">×</button>' +
       '</div>';
   });
@@ -2552,6 +2552,17 @@ function updatePOTotal() {
   document.getElementById('po-grand-total').textContent = fmt(total);
 }
 
+
+function poLineCpb(idx, val) {
+  poLines[idx].cpb = parseInt(val) || 1;
+  poLines[idx].total = (poLines[idx].qty || 1) * (poLines[idx].unitPrice || 0);
+  updatePOTotal();
+  var rows = document.querySelectorAll('#po-lines > div');
+  if (rows[idx]) {
+    var totalDiv = rows[idx].querySelector('div[style*="background:var(--bg2)"]');
+    if (totalDiv) totalDiv.textContent = 'QR ' + poLines[idx].total.toFixed(2);
+  }
+}
 async function savePurchaseOrder() {
   var validLines = poLines.filter(function(l){ return l.productId && parseFloat(l.qty) > 0; });
   if (!validLines.length) { alert('Add at least one product with quantity'); return; }
@@ -2603,14 +2614,16 @@ async function savePurchaseOrder() {
         console.log('Product fetch result:', res.data, res.error);
         if (!res.error && res.data) {
           var currentStock = parseFloat(res.data.stock) || 0;
-          var boxesPurchased = parseFloat(line.qty) || 0;
-          // Get cases_per_box: how many units per box
-          var prodInfo = posData.products.find(function(x){ return parseInt(x.id) === pid; });
-          var cpb = parseInt((prodInfo && prodInfo.cases_per_box) || 1);
-          // Stock is tracked in UNITS: boxes × units_per_box
-          var addUnits = boxesPurchased * cpb;
+          var cpbUsed = parseInt(line.cpb) || 4;
+          var addUnits = (parseFloat(line.qty) || 0) * cpbUsed;
+          console.log('Stock add:', line.qty, 'boxes ×', cpbUsed, '=', addUnits, 'units');
+          // User enters units directly
+
+
+
+
           var newStock = currentStock + addUnits;
-          console.log('Updating stock:', res.data.name, currentStock, '+ (' + boxesPurchased + ' boxes × ' + cpb + ' cpb) =', newStock);
+          console.log('Updating stock:', res.data.name, currentStock, '+', addUnits, '=', newStock);
           var upd = await sb.from('products').update({ stock: newStock }).eq('id', pid);
           console.log('Stock update result:', upd.error || 'OK');
           if (!upd.error) {
@@ -2625,9 +2638,7 @@ async function savePurchaseOrder() {
           // Try without store_id filter
           var res2 = await sb.from('products').select('id,stock,name').eq('id', pid).single();
           if (!res2.error && res2.data) {
-            var prodInfo2 = posData.products.find(function(x){ return parseInt(x.id) === pid; });
-            var cpb2 = parseInt((prodInfo2 && prodInfo2.cases_per_box) || 1);
-            var newStock2 = (parseFloat(res2.data.stock)||0) + (parseFloat(line.qty)||0) * cpb2;
+            var newStock2 = (parseFloat(res2.data.stock)||0) + (parseFloat(line.qty)||0);
             var upd2 = await sb.from('products').update({ stock: newStock2 }).eq('id', pid);
             if (!upd2.error) {
               updated++;
