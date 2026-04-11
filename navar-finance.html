@@ -2547,33 +2547,29 @@ function updatePOTotal() {
 }
 
 async function savePurchaseOrder() {
-  var validLines = poLines.filter(l => l.productId && l.qty > 0);
+  var validLines = poLines.filter(function(l){ return l.productId && parseFloat(l.qty) > 0; });
   if (!validLines.length) { alert('Add at least one product with quantity'); return; }
   var saveBtn = document.querySelector('#modal-purchase-order .btn-primary');
   if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
   try {
-    var grandTotal = validLines.reduce(function(a,l){ return a + l.total; }, 0);
+    var grandTotal = validLines.reduce(function(a,l){ return a + (parseFloat(l.total)||0); }, 0);
     var purchaseDate = document.getElementById('po-date').value;
     var supplierName = document.getElementById('po-supplier').value.trim();
     var invRef = document.getElementById('po-inv').value.trim();
     var notes = document.getElementById('po-notes').value.trim();
     var status = document.getElementById('po-status').value;
-    // Save to localStorage
+
+    // ── Save to localStorage ────────────────────────────────
     var all = lsGet('purchase_orders');
     var poRecord = {
-      id: 'po_' + Date.now(),
-      date: purchaseDate,
-      supplier: supplierName,
-      invoice_ref: invRef,
-      notes: notes,
-      status: status,
-      lines: validLines,
-      total: grandTotal,
-      created_at: new Date().toISOString()
+      id: 'po_' + Date.now(), date: purchaseDate, supplier: supplierName,
+      invoice_ref: invRef, notes: notes, status: status,
+      lines: validLines, total: grandTotal, created_at: new Date().toISOString()
     };
     all.unshift(poRecord);
     lsSet('purchase_orders', all);
-    // Save to Supabase purchases table
+
+    // ── Save to Supabase purchases table ────────────────────
     try {
       await dbInsert('purchases', {
         store_id: FIN_STORE_ID,
@@ -2583,38 +2579,78 @@ async function savePurchaseOrder() {
         paid_amount: status === 'paid' ? grandTotal : 0,
         status: status,
         purchase_date: purchaseDate,
-        notes: invRef ? ('Inv: ' + invRef + (notes ? ' | ' + notes : '')) : notes
+        notes: (invRef ? 'Inv: ' + invRef : '') + (notes ? ' | ' + notes : '')
       });
-    } catch(e) { console.warn('Supabase purchase save:', e.message); }
-    // Update POS product stock in Supabase
+      console.log('Purchase saved to Supabase ✅');
+    } catch(e) { console.warn('Purchase Supabase save error:', e.message); }
+
+    // ── Update POS stock in Supabase ────────────────────────
     var updated = 0, failed = [];
-    for (var line of validLines) {
+    console.log('Updating stock for', validLines.length, 'products...');
+    for (var i = 0; i < validLines.length; i++) {
+      var line = validLines[i];
+      var pid = parseInt(line.productId);
+      if (!pid) { failed.push(line.productName + ': invalid ID'); continue; }
       try {
-        var pid = parseInt(line.productId) || line.productId;
-        var res = await sb.from('products').select('id,stock,name').eq('id', pid).single();
+        console.log('Fetching product', pid, 'for stock update...');
+        var res = await sb.from('products').select('id,stock,name').eq('id', pid).eq('store_id', FIN_STORE_ID).single();
+        console.log('Product fetch result:', res.data, res.error);
         if (!res.error && res.data) {
-          var newStock = (parseFloat(res.data.stock)||0) + parseFloat(line.qty||0);
-          var upd = await sb.from('products').update({stock: newStock}).eq('id', pid);
+          var currentStock = parseFloat(res.data.stock) || 0;
+          var addQty = parseFloat(line.qty) || 0;
+          var newStock = currentStock + addQty;
+          console.log('Updating stock:', res.data.name, currentStock, '+', addQty, '=', newStock);
+          var upd = await sb.from('products').update({ stock: newStock }).eq('id', pid);
+          console.log('Stock update result:', upd.error || 'OK');
           if (!upd.error) {
             updated++;
             // Update local posData cache
-            var p = posData.products.find(function(x){ return String(x.id) === String(pid); });
-            if (p) { p.stock = newStock; p.stock_quantity = newStock; }
-          } else { failed.push(line.productName + ': ' + upd.error.message); }
-        } else { failed.push(line.productName + ' (not found in Supabase)'); }
-      } catch(e) { failed.push(line.productName + ': ' + e.message); }
+            var cached = posData.products.find(function(x){ return parseInt(x.id) === pid; });
+            if (cached) { cached.stock = newStock; cached.stock_quantity = newStock; }
+          } else {
+            failed.push(line.productName + ': ' + upd.error.message);
+          }
+        } else {
+          // Try without store_id filter
+          var res2 = await sb.from('products').select('id,stock,name').eq('id', pid).single();
+          if (!res2.error && res2.data) {
+            var newStock2 = (parseFloat(res2.data.stock)||0) + (parseFloat(line.qty)||0);
+            var upd2 = await sb.from('products').update({ stock: newStock2 }).eq('id', pid);
+            if (!upd2.error) {
+              updated++;
+              var cached2 = posData.products.find(function(x){ return parseInt(x.id) === pid; });
+              if (cached2) { cached2.stock = newStock2; cached2.stock_quantity = newStock2; }
+            } else { failed.push(line.productName + ': ' + upd2.error.message); }
+          } else {
+            failed.push(line.productName + ' (ID:' + pid + ') not found');
+            console.warn('Product not found in Supabase:', pid, res.error);
+          }
+        }
+      } catch(lineErr) {
+        failed.push(line.productName + ': ' + lineErr.message);
+        console.error('Stock update error for', line.productName, lineErr);
+      }
     }
-    var msg = '✅ Purchase saved! Stock updated for ' + updated + ' product(s).';
-    if (failed.length) msg += ' ⚠️ Failed: ' + failed.join(', ');
-    showToast(msg);
+
+    var msg = updated > 0
+      ? '✅ Purchase saved! Stock updated for ' + updated + ' product(s).'
+      : '⚠️ Purchase saved but stock update failed.';
+    if (failed.length) msg += ' Issues: ' + failed.join(', ');
+    showToast(msg, updated > 0 ? 'ok' : 'err');
+    console.log('Stock update summary - updated:', updated, 'failed:', failed);
     closeModal('modal-purchase-order');
     loadPurchaseOrders();
+    // Refresh sync
+    await syncData();
+    loadCurrentPage('purchases');
   } catch(e) {
-    showToast('❌ Error: ' + e.message);
+    showToast('❌ Error: ' + e.message, 'err');
+    console.error('savePurchaseOrder error:', e);
   } finally {
     if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '💾 Save & Update Stock'; }
   }
 }
+
 
 function previewPurchaseInvoice() {
   var validLines = poLines.filter(l => l.productId && l.qty > 0);
