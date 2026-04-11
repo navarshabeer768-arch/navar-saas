@@ -2639,10 +2639,11 @@ async function savePurchaseOrder() {
     showToast(msg, updated > 0 ? 'ok' : 'err');
     console.log('Stock update summary - updated:', updated, 'failed:', failed);
     closeModal('modal-purchase-order');
-    loadPurchaseOrders();
-    // Refresh sync
+    // Force re-sync from Supabase to get fresh stock values
     await syncData();
-    loadCurrentPage('purchases');
+    // Reload products page if visible to show updated stock
+    loadPurchaseOrders();
+    if (typeof loadProducts === 'function') loadProducts();
   } catch(e) {
     showToast('❌ Error: ' + e.message, 'err');
     console.error('savePurchaseOrder error:', e);
@@ -2683,19 +2684,47 @@ function loadPurchaseOrders() {
   var orders = lsGet('purchase_orders');
   var tbody = document.getElementById('po-table-body');
   if (!tbody) return;
-  if (!orders.length) {
+
+  // Compute stats
+  var totalPurchased = 0, totalPending = 0, totalPaid = 0, totalBoxes = 0;
+  orders.forEach(function(o) {
+    var t = parseFloat(o.total||0);
+    totalPurchased += t;
+    if (o.status === 'paid') totalPaid += t;
+    else if (o.status === 'pending') totalPending += t;
+    else if (o.status === 'partial') totalPending += t - parseFloat(o.paid_amount||0);
+    totalBoxes += (o.lines||[]).reduce(function(a,l){ return a + parseFloat(l.qty||0); }, 0);
+  });
+  var purTotal = document.getElementById('pur-total');
+  var purPending = document.getElementById('pur-pending');
+  var purPaid = document.getElementById('pur-paid');
+  var purBoxes = document.getElementById('pur-boxes');
+  if (purTotal) purTotal.textContent = fmt(totalPurchased);
+  if (purPending) purPending.textContent = fmt(totalPending);
+  if (purPaid) purPaid.textContent = fmt(totalPaid);
+  if (purBoxes) purBoxes.textContent = totalBoxes.toFixed(0);
+
+  // Filter by date if filters exist
+  var fromEl = document.getElementById('po-from');
+  var toEl = document.getElementById('po-to');
+  var filtered = orders;
+  if (fromEl && fromEl.value) filtered = filtered.filter(function(o){ return (o.date||'') >= fromEl.value; });
+  if (toEl && toEl.value) filtered = filtered.filter(function(o){ return (o.date||'') <= toEl.value; });
+
+  if (!filtered.length) {
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text2);">No purchases yet</td></tr>';
     return;
   }
-  tbody.innerHTML = orders.map(function(o) {
-    var linesSummary = (o.lines||[]).map(l => l.productName + ' ×' + l.qty).join(', ');
+  tbody.innerHTML = filtered.map(function(o) {
+    var linesSummary = (o.lines||[]).map(function(l){ return (l.productName||'?') + ' ×' + l.qty; }).join(', ');
+    var statusClass = o.status==='paid'?'badge-success':o.status==='partial'?'badge-warning':'badge-danger';
     return '<tr>' +
       '<td>' + (o.date||'') + '</td>' +
       '<td>' + (o.supplier||'—') + '</td>' +
-      '<td style="font-size:.8rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + linesSummary + '</td>' +
-      '<td>QR ' + fmt(o.total||0) + '</td>' +
-      '<td><span class="badge ' + (o.status==='paid'?'badge-success':o.status==='partial'?'badge-warning':'badge-danger') + '">' + (o.status||'pending') + '</span></td>' +
-      '<td><button onclick="deletePO(this.dataset.id)" data-id="' + o.id + '" class="btn btn-danger btn-sm">Del</button></td>' +
+      '<td style="font-size:.8rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + linesSummary + '">' + linesSummary + '</td>' +
+      '<td style="font-weight:700;">QR ' + fmt(o.total||0) + '</td>' +
+      '<td><span class="badge ' + statusClass + '">' + (o.status||'pending') + '</span></td>' +
+      '<td><button onclick="deletePO(this.dataset.id)" data-id="' + o.id + '" class="btn btn-danger btn-sm" style="padding:4px 10px;">Del</button></td>' +
       '</tr>';
   }).join('');
 }
