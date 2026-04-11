@@ -2640,4 +2640,84 @@ function deletePO(id) {
   loadPurchaseOrders();
 }
 
+
+// ── Compatibility helpers ────────────────────────────────────
+function getPurchaseOrders() {
+  return lsGet('purchase_orders');
+}
+
+function loadImportCosts() {
+  var items = lsGet('import_costs');
+  var tbody = document.getElementById('import-cost-list');
+  if (!tbody) return;
+  if (!items.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text2);">No import costs yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML = items.map(function(c,i) {
+    return '<tr><td>' + (c.date||'') + '</td><td>' + (c.description||'') + '</td><td>' +
+      (c.category||'') + '</td><td>QR ' + fmt(c.amount||0) + '</td>' +
+      '<td><button onclick="deleteImportCost(' + i + ')" class="btn btn-danger btn-sm">Del</button></td></tr>';
+  }).join('');
+}
+
+function saveImportCost() {
+  var desc = document.getElementById('ic-desc');
+  var cat = document.getElementById('ic-cat');
+  var amt = document.getElementById('ic-amount');
+  var dt = document.getElementById('ic-date');
+  if (!desc || !amt) return;
+  var items = lsGet('import_costs');
+  items.unshift({ id:'ic_'+Date.now(), description:desc.value, category:cat?cat.value:'Other',
+    amount:parseFloat(amt.value)||0, date:dt?dt.value:today() });
+  lsSet('import_costs', items);
+  desc.value=''; amt.value='';
+  closeModal('modal-import-cost');
+  loadImportCosts();
+  showToast('Import cost saved ✅');
+}
+
+function deleteImportCost(idx) {
+  if (!confirm('Delete?')) return;
+  var items = lsGet('import_costs');
+  items.splice(idx,1);
+  lsSet('import_costs', items);
+  loadImportCosts();
+}
+
+function showToast(msg, type) {
+  var el = document.getElementById('toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'toast';
+    el.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 20px;border-radius:20px;z-index:9999;font-size:.85rem;transition:opacity .3s;';
+    document.body.appendChild(el);
+  }
+  if (type === 'err' || type === 'error') el.style.background = '#e53935';
+  else if (type === 'ok') el.style.background = '#43a047';
+  else el.style.background = '#333';
+  el.textContent = msg;
+  el.style.opacity = '1';
+  clearTimeout(el._t);
+  el._t = setTimeout(function(){ el.style.opacity = '0'; }, 3000);
+}
+
+// COGS page compatibility
+function loadCOGS() {
+  var from = document.getElementById('cogs-from') ? document.getElementById('cogs-from').value : monthStart();
+  var to = document.getElementById('cogs-to') ? document.getElementById('cogs-to').value : today();
+  var invs = posData.invoices.filter(function(i){ return i.date >= from && i.date <= to; });
+  var revenue = invs.reduce(function(a,i){ return a+(parseFloat(i.total_amount||i.total||0)); }, 0);
+  var purchases = lsGet('purchase_orders').filter(function(o){ return o.date >= from && o.date <= to; });
+  var purchaseCost = purchases.reduce(function(a,o){ return a+(o.total||0); }, 0);
+  var importC = lsGet('import_costs').filter(function(c){ return c.date >= from && c.date <= to; })
+    .reduce(function(a,c){ return a+(c.amount||0); }, 0);
+  var gross = revenue - purchaseCost - importC;
+  var el = document.getElementById('cogs-table');
+  if (el) el.innerHTML = '<tr><td>Revenue</td><td style="text-align:right;color:var(--green);">QR '+fmt(revenue)+'</td></tr>' +
+    '<tr><td>Purchases</td><td style="text-align:right;color:var(--red);">- QR '+fmt(purchaseCost)+'</td></tr>' +
+    '<tr><td>Import Costs</td><td style="text-align:right;color:var(--red);">- QR '+fmt(importC)+'</td></tr>' +
+    '<tr style="font-weight:700;font-size:1.1em;"><td>Gross Profit</td><td style="text-align:right;color:'+(gross>=0?'var(--green)':'var(--red)')+';">QR '+fmt(gross)+'</td></tr>';
+}
+
 </script>
