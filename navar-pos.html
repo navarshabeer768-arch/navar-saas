@@ -1749,6 +1749,7 @@ const localCache = {};
 
 // Tables that exist in our Supabase schema
 const VALID_TABLES = new Set(['products','customers','invoices','expenses']);
+// settings stored in localStorage only
 
 async function dbGetAll(table) {
   // Skip tables that don't exist in our schema - return empty array silently
@@ -1773,6 +1774,12 @@ async function dbGetAll(table) {
 
 async function dbGet(table, id) {
   const pk = getPK(table);
+  // Settings always use localStorage
+  if (table === 'settings') {
+    const stored = localStorage.getItem('pos_setting_' + STORE_ID + '_' + id);
+    if (stored) { try { return JSON.parse(stored); } catch(e) {} }
+    return null;
+  }
   try {
     const { data } = await Promise.race([
       sb.from(table).select('*').eq(pk, id).single(),
@@ -1842,6 +1849,11 @@ async function dbAdd(table, data) {
 async function dbPut(table, data) {
   const pk = getPK(table);
   const id = data[pk];
+  // Settings always use localStorage
+  if (table === 'settings') {
+    localStorage.setItem('pos_setting_' + STORE_ID + '_' + (data.key||id), JSON.stringify(data));
+    return;
+  }
   // Skip tables not in our schema
   if (!VALID_TABLES.has(table)) {
     if (localCache[table]) {
