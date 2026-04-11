@@ -1764,27 +1764,27 @@ function loadProducts() {
   document.getElementById('prod-count').textContent = products.length;
 
   // Real stock from Supabase sync
-  const whMap = {}; pdGet("warehouse_stock").forEach(w => whMap[w.product_id] = w.quantity||0);
-  const trMap = {}; pdGet("inventory").forEach(t => trMap[t.product_id] = t.quantity||0);
+  // Use products.stock directly as warehouse stock (updated by Finance purchases)
+  const whMap = {}; products.forEach(p => whMap[p.id||p.product_id] = parseFloat(p.stock||p.stock_quantity||0));
+  const trMap = {}; // Truck stock not tracked in this version
 
   let totalWHBags = 0, totalWHValue = 0, totalWHBoxes = 0;
   products.forEach(p => {
     const cpb = p.cases_per_box || 4;
-    const wh = p.pos_id ? (whMap[p.pos_id]||0) : 0;
+    const wh = parseFloat(whMap[p.id||p.product_id] || 0);
     totalWHBags += wh;
-    totalWHBoxes += Math.floor(wh / cpb);
-    totalWHValue += Math.floor(wh / cpb) * (p.cost_price||0);
+    totalWHBoxes += wh; // stock is already in units
+    totalWHValue += wh * parseFloat(p.cost||p.cost_price||0);
   });
-  document.getElementById('prod-wh-total').textContent = totalWHBoxes + ' boxes total';
+  document.getElementById('prod-wh-total').textContent = totalWHBoxes.toFixed(0) + ' units total';
   document.getElementById('prod-wh-value').textContent = fmt(totalWHValue);
 
   document.getElementById('product-list').innerHTML = filtered.map(p => {
     const cpb = p.cases_per_box || 4;
-    const whBags = p.pos_id ? (whMap[p.pos_id]||0) : 0;
-    const trBags = p.pos_id ? (trMap[p.pos_id]||0) : 0;
+    const whBags = parseFloat(whMap[p.id||p.product_id||p.pos_id] || 0);
+    const trBags = parseFloat(trMap[p.id||p.product_id||p.pos_id] || 0);
     const whFmt = fmtStock(whBags, cpb);
     const trFmt = fmtStock(trBags, cpb);
-    const margin = p.sell_price && p.cost_price ? (((p.sell_price-p.cost_price)/p.sell_price)*100).toFixed(0) : 0;
     const sellP = parseFloat(p.price||p.sell_price||p.selling_price||0);
     const costP = parseFloat(p.cost||p.cost_price||0);
     const marginCalc = sellP && costP ? (((sellP-costP)/sellP)*100).toFixed(0) : 0;
