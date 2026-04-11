@@ -1821,9 +1821,9 @@ async function dbGetByIndex(table, col, val) {
 
 // Columns not in Supabase schema - stripped before insert/update
 const REMOVE_COLUMNS = {
-  customers: ['contact_person','address','notes','credit_limit'],
+  customers: ['contact_person','address','notes','credit_limit','credit_balance','phone'],
   expenses: ['notes','tags','receipt'],
-  invoices: ['cash_paid','change_amount','salesman','invoice_items'],
+  invoices: ['cash_paid','change_amount','salesman','invoice_items','time','cheque_number','cheque_date','salesman_name'],
   products: ['cases_per_box','low_stock_threshold','icon','cost_price','selling_price','stock_quantity','product_id']
 };
 
@@ -2594,7 +2594,7 @@ async function completeOrder() {
     try {
       // Strip columns not in Supabase schema before insert
       const cleanInvoiceData = {...invoiceData};
-      ['cash_paid','change_amount','salesman','invoice_items','time'].forEach(c => delete cleanInvoiceData[c]);
+      ['cash_paid','change_amount','salesman','invoice_items','time','cheque_number','cheque_date','salesman_name'].forEach(c => delete cleanInvoiceData[c]);
       const result = await Promise.race([
         sb.from('invoices').insert(cleanInvoiceData).select().single(),
         new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 6000))
@@ -2799,8 +2799,9 @@ async function loadInventory() {
 }
 
 function getMyTruckQtyMapSync() {
+  const owner = (typeof getCurrentTruckOwner === 'function') ? (getCurrentTruckOwner() || 'admin') : 'admin';
   try {
-    var stored = localStorage.getItem('truck_stock_' + STORE_ID + '_admin');
+    var stored = localStorage.getItem('truck_stock_' + STORE_ID + '_' + owner);
     if (stored) return JSON.parse(stored);
   } catch(e) {}
   return {};
@@ -2955,9 +2956,8 @@ async function saveCustomer() {
   // Base data WITHOUT credit_limit — always works even if column missing
   const baseData = {
     name,
-    phone: document.getElementById('cust-phone').value,
-    address: document.getElementById('cust-address').value,
-    credit_balance: 0,
+    phone: document.getElementById('cust-phone').value || null,
+    email: document.getElementById('cust-email') ? document.getElementById('cust-email').value || null : null,
     created_at: new Date().toISOString()
   };
 
@@ -2985,9 +2985,9 @@ async function saveCustomer() {
     showToast('✅ Customer updated!');
     logAudit('Customer', 'Updated: ' + name);
   } else {
-    // Adding new customer — try with credit_limit first
-    const withLimit = {...baseData, credit_limit: creditLimit};
-    const res = await sb.from('customers').insert(withLimit).select().single();
+    // Adding new customer — clean data only
+    const cleanCust = {store_id: STORE_ID, name: baseData.name, phone: baseData.phone||null, email: baseData.email||null, created_at: baseData.created_at};
+    const res = await sb.from('customers').insert(cleanCust).select().single();
     if (res.error) {
       if (res.error.message && res.error.message.includes('credit_limit')) {
         // Column missing — insert without it
@@ -6047,8 +6047,10 @@ async function saveTruckStock(owner, stockObj) {
 // Get my truck qty map for POS/inventory screen
 async function getMyTruckQtyMap() {
   const owner = getCurrentTruckOwner();
-  return await loadTruckStock(owner);
+  const truckKey = 'truck_stock_' + STORE_ID + '_' + (owner || 'admin');
+  try { return JSON.parse(localStorage.getItem(truckKey) || '{}'); } catch(e) { return {}; }
 }
+
 
 async function tlSwitchTab(tab) {
   document.getElementById('tl-tab-load').className = tab === 'load' ? 'btn btn-primary btn-sm' : 'btn btn-outline btn-sm';
@@ -6135,7 +6137,7 @@ async function loadTruckScreen() {
   let truckTotalBoxes = 0, whTotalBoxes = 0;
   products.forEach(p => {
     const cpb = getCasesPerBox(p) || 1;
-    truckTotalBoxes += Math.floor((truckStock[p.product_id] || 0) / cpb);
+    truckTotalBoxes += Math.floor(truckQty / (cpb||4));
     whTotalBoxes += Math.floor(parseFloat(whMap[p.id||p.product_id]||0) / cpb);
   });
   document.getElementById('tl-truck-total').textContent = truckTotalBoxes + ' boxes';
@@ -6146,7 +6148,14 @@ async function loadTruckScreen() {
 
   list.innerHTML = products.map(p => {
     const cpb = getCasesPerBox(p);
-    const truckQty = truckStock[p.product_id] || 0;
+    const truckQty = parseFloat(truckStock[p.id||p.product_id] || truckStock[p.product_id] || 0);
+    // Also check localStorage truck stock
+    var lsTruckKey = 'truck_stock_' + STORE_ID + '_' + (sel ? sel.value || 'admin' : 'admin');
+    try {
+      var lsTruck = JSON.parse(localStorage.getItem(lsTruckKey) || '{}');
+      var lsQty = parseFloat(lsTruck[p.id||p.product_id] || 0);
+      if (lsQty > truckQty) truckQty = lsQty;
+    } catch(e) {}
     const whQty = parseFloat(whMap[p.id] || whMap[p.product_id] || p.stock || p.stock_quantity || 0);
     const truckFmt = fmtStock(truckQty, cpb);
     const whFmt = fmtStock(whQty, cpb);
@@ -6190,36 +6199,50 @@ function openTruckLoadModal(productId, name, truckQty, whQty, cpb) {
   openModal('truckload-modal');
 }
 
-async function confirmTruckLoad() {
+async async function confirmTruckLoad() {
   const productId = parseInt(document.getElementById('tl-product-id').value);
   const boxes = parseInt(document.getElementById('tl-qty').value) || 0;
   if (boxes <= 0) { showToast('⚠️ Enter valid quantity!'); return; }
-  const cpb = parseInt(document.getElementById('tl-product-id').dataset.cpb) || 1;
-  const bags = boxes * cpb;  // convert boxes → bags
+  const cpb = parseInt(document.getElementById('tl-product-id').dataset.cpb) || 4;
+  const units = boxes * cpb;
   const owner = getCurrentTruckOwner();
 
-  // Check warehouse (warehouse stores bags)
-  const whRows = await dbGetByIndex('warehouse_stock', 'product_id', productId);
-  const whQty = whRows.length > 0 ? whRows[0].quantity : 0;
-  if (bags > whQty) { showToast(`⚠️ Only ${fmtStock(whQty, cpb)} in warehouse!`); return; }
+  // Get warehouse stock directly from products.stock
+  const prod = (localCache['products']||[]).find(function(p){ return parseInt(p.id||p.product_id) === productId; });
+  var whUnits = prod ? parseFloat(prod.stock||prod.stock_quantity||0) : 0;
+  if (whUnits <= 0) {
+    // Try fresh from Supabase
+    try {
+      var res = await sb.from('products').select('id,stock').eq('id', productId).single();
+      if (!res.error && res.data) { whUnits = parseFloat(res.data.stock||0); }
+    } catch(e) {}
+  }
+  const whBoxes = Math.floor(whUnits / cpb);
+  if (units > whUnits) {
+    showToast('⚠️ Only ' + whBoxes + ' boxes (' + whUnits + ' units) in warehouse!');
+    return;
+  }
 
-  // Deduct from warehouse
-  whRows[0].quantity = whQty - bags;
-  whRows[0].last_updated = new Date().toISOString();
-  await dbPut('warehouse_stock', whRows[0]);
-
-  // Add to THIS owner's truck stock (settings-based)
-  const truckStock = await loadTruckStock(owner);
-  truckStock[productId] = (truckStock[productId] || 0) + bags;
-  await saveTruckStock(owner, truckStock);
-
-  // Save load log
-  await saveTruckLoadLog(productId, '', bags, cpb, owner, 'load');
-
-  closeModal('truckload-modal');
-  loadTruckScreen();
-  showToast(`✅ ${fmtStock(bags,cpb)} loaded to ${owner} truck!`);
+  // Deduct from warehouse: update products.stock in Supabase
+  const newStock = whUnits - units;
+  try {
+    await sb.from('products').update({stock: newStock}).eq('id', productId);
+    // Update local cache
+    if (prod) { prod.stock = newStock; prod.stock_quantity = newStock; }
+    // Add to truck stock (localStorage)
+    const truckKey = 'truck_stock_' + STORE_ID + '_' + (owner || 'admin');
+    var truckMap = {};
+    try { truckMap = JSON.parse(localStorage.getItem(truckKey) || '{}'); } catch(e) {}
+    truckMap[productId] = (parseFloat(truckMap[productId]||0)) + units;
+    localStorage.setItem(truckKey, JSON.stringify(truckMap));
+    showToast('✅ Loaded ' + boxes + ' boxes onto truck!');
+    closeModal('modal-truck-load');
+    loadTruckScreen();
+  } catch(e) {
+    showToast('❌ Load failed: ' + e.message);
+  }
 }
+
 
 function openTruckReturnModal(productId, name, truckQty, cpb) {
   cpb = cpb || 1;
