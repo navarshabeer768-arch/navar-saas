@@ -1747,7 +1747,14 @@ async function processOfflineQueue() {
 // ── Local cache for offline use ──
 const localCache = {};
 
+// Tables that exist in our Supabase schema
+const VALID_TABLES = new Set(['products','customers','invoices','expenses','settings']);
+
 async function dbGetAll(table) {
+  // Skip tables that don't exist in our schema - return empty array silently
+  if (!VALID_TABLES.has(table)) {
+    return localCache[table] || [];
+  }
   try {
     const { data, error } = await Promise.race([
       sb.from(table).select('*').eq('store_id', STORE_ID).order(getPK(table), { ascending: true }),
@@ -1835,6 +1842,14 @@ async function dbAdd(table, data) {
 async function dbPut(table, data) {
   const pk = getPK(table);
   const id = data[pk];
+  // Skip tables not in our schema
+  if (!VALID_TABLES.has(table)) {
+    if (localCache[table]) {
+      const i = localCache[table].findIndex(r => r[pk] == id);
+      if (i >= 0) localCache[table][i] = data;
+    }
+    return;
+  }
   try {
     await Promise.race([
       sb.from(table).upsert(data),
@@ -1869,11 +1884,22 @@ async function dbDelete(table, id) {
 // Merge locally stored photos into product array
 function mergeProductPhotos(products) {
   return products.map(p => {
-    if (!p.photo) {
-      const stored = localStorage.getItem('prod_photo_' + p.product_id);
-      if (stored) return {...p, photo: stored};
+    // Normalize column names from Supabase
+    const normalized = {
+      ...p,
+      product_id: p.id || p.product_id,
+      cost_price: parseFloat(p.cost || p.cost_price || 0),
+      selling_price: parseFloat(p.price || p.selling_price || 0),
+      stock_quantity: parseFloat(p.stock || p.stock_quantity || 0),
+      low_stock_threshold: parseFloat(p.min_stock || p.low_stock_threshold || 10),
+      icon: p.icon || '📦',
+      cases_per_box: p.cases_per_box || 4
+    };
+    if (!normalized.photo) {
+      const stored = localStorage.getItem('prod_photo_' + (p.id || p.product_id));
+      if (stored) return {...normalized, photo: stored};
     }
-    return p;
+    return normalized;
   });
 }
 
@@ -3975,16 +4001,21 @@ async function saveProduct() {
   const data = {
     name,
     category: document.getElementById('prod-cat').value,
+    cost: cost,          // Supabase column: cost
+    price: sell,         // Supabase column: price
+    stock: stockQty,     // Supabase column: stock
+    min_stock: parseInt(document.getElementById('prod-low').value) || 10,
+    unit: document.getElementById('prod-unit').value,
+    barcode: document.getElementById('prod-barcode').value.trim() || null,
+    photo: document.getElementById('prod-photo-data').value || null,
+    created_at: new Date().toISOString(),
+    // Keep local-only fields for POS display
     cost_price: cost,
     selling_price: sell,
     stock_quantity: stockQty,
-    unit: document.getElementById('prod-unit').value,
-    cases_per_box: parseInt(document.getElementById('prod-bags-per-box').value) || 4,
-    low_stock_threshold: parseInt(document.getElementById('prod-low').value) || 10,
     icon: document.getElementById('prod-icon').value || '📦',
-    barcode: document.getElementById('prod-barcode').value.trim() || null,
-    photo: document.getElementById('prod-photo-data').value || null,
-    created_at: new Date().toISOString()
+    cases_per_box: parseInt(document.getElementById('prod-bags-per-box').value) || 4,
+    low_stock_threshold: parseInt(document.getElementById('prod-low').value) || 10
   };
   // Handle photo separately - store in localStorage to avoid Supabase size limits
   const photoData = data.photo;
@@ -3995,14 +4026,19 @@ async function saveProduct() {
     const existing = await dbGet('products', data.id);
     if (existing) data.created_at = existing.created_at;
     // Save without photo to Supabase (avoid row size limit)
-    const dataForDB = {...data};
-    delete dataForDB.photo;
-    delete dataForDB.product_id;
-    // Map POS fields to Supabase columns
-    if (dataForDB.cost_price !== undefined) { dataForDB.cost = dataForDB.cost_price; delete dataForDB.cost_price; }
-    if (dataForDB.selling_price !== undefined) { dataForDB.price = dataForDB.selling_price; delete dataForDB.selling_price; }
-    if (dataForDB.stock_quantity !== undefined) { dataForDB.stock = dataForDB.stock_quantity; delete dataForDB.stock_quantity; }
-    if (dataForDB.low_stock_threshold !== undefined) { dataForDB.min_stock = dataForDB.low_stock_threshold; delete dataForDB.low_stock_threshold; }
+    // Build clean DB record - only Supabase columns
+    const dataForDB = {
+      id: data.id,
+      store_id: STORE_ID,
+      name: data.name,
+      category: data.category,
+      cost: data.cost,
+      price: data.price,
+      stock: data.stock,
+      min_stock: data.min_stock,
+      unit: data.unit,
+      barcode: data.barcode
+    };
     await dbPut('products', dataForDB);
     // Store photo in localStorage keyed by product_id
     if (photoData) {
@@ -4017,14 +4053,19 @@ async function saveProduct() {
     }
     productId = data.product_id;
   } else {
-    const dataForDB = {...data};
-    delete dataForDB.photo;
-    delete dataForDB.product_id;
-    // Map POS fields to Supabase columns
-    if (dataForDB.cost_price !== undefined) { dataForDB.cost = dataForDB.cost_price; delete dataForDB.cost_price; }
-    if (dataForDB.selling_price !== undefined) { dataForDB.price = dataForDB.selling_price; delete dataForDB.selling_price; }
-    if (dataForDB.stock_quantity !== undefined) { dataForDB.stock = dataForDB.stock_quantity; delete dataForDB.stock_quantity; }
-    if (dataForDB.low_stock_threshold !== undefined) { dataForDB.min_stock = dataForDB.low_stock_threshold; delete dataForDB.low_stock_threshold; }
+    // Build clean DB record - only Supabase columns
+    const dataForDB = {
+      store_id: STORE_ID,
+      name: data.name,
+      category: data.category,
+      cost: data.cost,
+      price: data.price,
+      stock: data.stock,
+      min_stock: data.min_stock,
+      unit: data.unit,
+      barcode: data.barcode,
+      active: true
+    };
     productId = await dbAdd('products', dataForDB);
     // Store photo in localStorage
     if (photoData && productId) {
