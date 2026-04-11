@@ -6610,11 +6610,24 @@ function logoutUser() {
   clearTimeout(_lockTimer);
   currentUserRole = null;
   localStorage.removeItem('employee_name');
-  document.getElementById('pin-screen').classList.remove('hidden');
-  document.getElementById('pin-input').value = '';
-  document.getElementById('pin-error').textContent = '';
-  checkLoginLock();
-  selectRole('admin');
+  // Show login screen
+  var loginScreen = document.getElementById('login-screen') || document.getElementById('pin-screen');
+  var homeScreen = document.getElementById('home-screen');
+  if (loginScreen) loginScreen.style.display = 'flex';
+  if (homeScreen) homeScreen.style.display = 'none';
+  // Clear login fields safely
+  var pinInput = document.getElementById('pin-input');
+  var pinError = document.getElementById('pin-error');
+  var userInput = document.getElementById('pos-login-user');
+  var passInput = document.getElementById('pos-login-pass');
+  if (pinInput) { pinInput.value = ''; }
+  if (pinError) { pinError.textContent = ''; }
+  if (userInput) userInput.value = '';
+  if (passInput) passInput.value = '';
+  var errEl = document.getElementById('pos-login-error');
+  if (errEl) errEl.textContent = '';
+  if (typeof checkLoginLock === 'function') checkLoginLock();
+  if (typeof selectRole === 'function') selectRole('admin');
 }
 
 function applyRoleUI() {
