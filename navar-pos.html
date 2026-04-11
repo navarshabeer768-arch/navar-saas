@@ -2716,11 +2716,13 @@ async function completeOrder() {
 // ═══════════════════════════════════════════════
 // INVENTORY
 // ═══════════════════════════════════════════════
-async function loadInventory() {
+async async function loadInventory() {
+  delete localCache['products'];
   const products = await dbGetAll('products');
   const owner = getCurrentTruckOwner();
-  const truckStock = await loadTruckStock(owner); // {product_id: qty}
-  const whRows = await dbGetAll('warehouse_stock');
+  const truckStock = {}; // Truck stock stored locally
+  // Use products.stock as warehouse stock (updated by Finance purchases)
+  const whRows = products.map(p => ({product_id: p.id||p.product_id, quantity: parseFloat(p.stock||0)}));
   // Build invMap like the old format {product_id: {quantity: N}}
   const invMap = {};
   Object.keys(truckStock).forEach(pid => { invMap[parseInt(pid)] = { quantity: truckStock[pid] }; });
@@ -3874,6 +3876,8 @@ async function printCollectionSettlement(custId, amount, prevBalance, newBalance
 // PRODUCTS
 // ═══════════════════════════════════════════════
 async function loadProducts() {
+  // Clear cache to force fresh fetch from Supabase (picks up stock changes from Finance)
+  delete localCache['products'];
   const prods = await dbGetAll('products');
   const list = document.getElementById('products-list');
   if (!prods.length) {
@@ -4255,10 +4259,10 @@ async function renderCreditBalances() {
     `</tbody></table></div>` : '<div class="alert alert-success">✅ All customers have cleared their credit!</div>');
 }
 
-async function renderLowStock() {
+async async function renderLowStock() {
+  delete localCache['products'];
   const prods = await dbGetAll('products');
-  const inv = await dbGetAll('inventory');
-  const invMap = {}; inv.forEach(i=>invMap[i.product_id]=i.quantity);
+  const invMap = {}; prods.forEach(p => invMap[p.product_id||p.id] = parseFloat(p.stock||p.stock_quantity||0));
   const low = prods.map(p=>({...p,qty:invMap[p.product_id]||0})).filter(p=>p.qty<=(p.low_stock_threshold||10));
   const out = low.filter(p=>p.qty<=0);
   document.getElementById('report-content').innerHTML = (out.length?('<div class="alert alert-warning">🚨 '+out.length+' products OUT OF STOCK</div>'):'') +
