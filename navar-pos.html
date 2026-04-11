@@ -2720,117 +2720,54 @@ async function loadInventory() {
   delete localCache['products'];
   const products = await dbGetAll('products');
   const owner = getCurrentTruckOwner();
-  const truckStock = {}; // Truck stock stored locally
-  // Use products.stock as warehouse stock (updated by Finance purchases)
-  const whRows = products.map(p => ({product_id: p.id||p.product_id, quantity: parseFloat(p.stock||0)}));
-  // Build invMap like the old format {product_id: {quantity: N}}
-  const invMap = {};
-  Object.keys(truckStock).forEach(pid => { invMap[parseInt(pid)] = { quantity: truckStock[pid] }; });
-  const whMap = {}; whRows.forEach(i => whMap[i.product_id] = i);
-  const alerts = document.getElementById('low-stock-alerts');
-  const list = document.getElementById('inventory-list');
-  const low = products.filter(p => {
-    const qty = invMap[p.product_id]?.quantity || 0;
-    return qty <= (p.low_stock_threshold || 10) && qty > 0;
-  });
-  const out = products.filter(p => {
-    const qty = invMap[p.product_id]?.quantity || 0;
-    return qty <= 0;
-  });
-  let alertHtml = '';
-  if (out.length) alertHtml += `<div class="alert alert-warning">🚨 Out of stock: ${out.map(p=>p.name).join(', ')}</div>`;
-  if (low.length) alertHtml += `<div class="alert alert-warning">⚠️ Low stock: ${low.map(p=>p.name).join(', ')}</div>`;
-  alerts.innerHTML = alertHtml;
-  if (!products.length) { list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📦</div><div class="empty-state-text">No products yet</div><div class="empty-state-sub">Add products first</div></div>'; return; }
-  const cats = [...new Set(products.map(p => p.category))];
-  list.innerHTML = cats.map(cat => {
-    const catProds = products.filter(p => p.category === cat);
-    return `<div class="section-title">${cat}</div>` + catProds.map(p => {
-      const cpb = getCasesPerBox(p);
-      const truckCases = invMap[p.product_id]?.quantity || 0;
-      const whCases = whMap[p.product_id]?.quantity || 0;
-      const truckFmt = fmtStock(truckCases, cpb);
-      const whFmt = fmtStock(whCases, cpb);
-      const cls = truckCases <= 0 ? 'out' : truckCases <= (p.low_stock_threshold || 10) ? 'low' : '';
-      const imgHtml = p.photo
-        ? `<img class="inv-photo" src="${p.photo}" alt="${p.name}">`
-        : `<div class="inv-photo-placeholder">${p.icon||'📦'}</div>`;
-      return `<div class="inv-card">
-        ${imgHtml}
-        <div class="inv-info">
-          <div class="inv-name">${p.name}</div>
-          <div class="inv-detail">${p.category} · Cost: ${fmtMoney(p.cost_price)} · Sell: ${fmtMoney(p.selling_price)}</div>
-          <div class="inv-detail">📦 ${cpb} cases/box · Low alert: ${p.low_stock_threshold||10}</div>
-          <div style="display:flex;gap:12px;margin-top:4px;">
-            <div style="font-size:.75rem;"><span style="color:var(--navy);font-weight:700;">🚛 Truck:</span> ${truckFmt}</div>
-            <div style="font-size:.75rem;"><span style="color:var(--green);font-weight:700;">🏭 WH:</span> ${whFmt}</div>
-          </div>
-        </div>
-        <div>
-          <div class="inv-qty ${cls}">${truckFmt}</div>
-          <div style="font-size:.6rem;color:var(--text2);text-align:center;">🚛 Truck</div>
-        </div>
-      </div>`;
-    }).join('');
+  
+  const container = document.getElementById('inventory-list');
+  if (!container) return;
+  
+  if (!products.length) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📦</div><div class="empty-state-text">No products</div></div>';
+    return;
+  }
+  
+  // Totals using products.stock (updated by Finance purchases)
+  const totalWHBoxes = products.reduce((a,p) => {
+    const cpb = parseInt(p.cases_per_box || 4);
+    return a + Math.floor((parseFloat(p.stock||0)) / cpb);
+  }, 0);
+  
+  const totalTruckBoxes = 0; // Truck stock not tracked in this version
+  
+  const elWH = document.getElementById('inv-wh-boxes');
+  const elTruck = document.getElementById('inv-truck-boxes');
+  if (elWH) elWH.textContent = totalWHBoxes + ' boxes';
+  if (elTruck) elTruck.textContent = totalTruckBoxes + ' boxes';
+  
+  container.innerHTML = products.map(p => {
+    const cpb = parseInt(p.cases_per_box || 4);
+    const totalUnits = parseFloat(p.stock || p.stock_quantity || 0);
+    const whBoxes = Math.floor(totalUnits / cpb);
+    const whRem = totalUnits % cpb;
+    const whDisplay = whBoxes + (whRem > 0 ? ' + ' + whRem + ' units' : '');
+    const isLow = totalUnits <= (p.min_stock || p.low_stock_threshold || 10);
+    return \`<div class="inv-item">
+      <div class="inv-item-icon">\${p.icon||'📦'}</div>
+      <div class="inv-item-info">
+        <div class="inv-item-name">\${p.name}</div>
+        <div class="inv-item-sub">\${p.category||'—'} · \${cpb} cases/box</div>
+      </div>
+      <div class="inv-item-stock">
+        <div class="\${isLow ? 'color-red' : 'color-green'} fw-800">\${whBoxes} boxes</div>
+        <div style="font-size:.7rem;color:var(--text3);">🏭 Warehouse: \${whDisplay}</div>
+        <div style="font-size:.7rem;color:var(--text3);">🚛 Truck: 0 boxes</div>
+      </div>
+      <div class="inv-item-btns">
+        <button class="btn btn-primary btn-sm" onclick="loadToTruck(\${p.id})">🚛 Load</button>
+        <button class="btn btn-outline btn-sm" onclick="returnFromTruck(\${p.id})">↩ Return</button>
+      </div>
+    </div>\`;
   }).join('');
 }
 
-let currentInvTab = 'truck';
-let cpPayType = 'cash';
-let cpPrintType = 'a4';
-
-function switchInvTab(tab) {
-  currentInvTab = tab;
-  ['truck','warehouse','count'].forEach(t => {
-    const el = document.getElementById('inv-tab-' + t);
-    if (el) el.classList.toggle('active', t === tab);
-  });
-  const countSection = document.getElementById('stock-count-section');
-  const invList = document.getElementById('inventory-list');
-  const alerts = document.getElementById('low-stock-alerts');
-  if (tab === 'count') {
-    if (countSection) countSection.style.display = 'block';
-    if (invList) invList.style.display = 'none';
-    if (alerts) alerts.style.display = 'none';
-    loadStockCountSheet();
-  } else {
-    if (countSection) countSection.style.display = 'none';
-    if (invList) invList.style.display = 'block';
-    if (alerts) alerts.style.display = 'block';
-    loadInventory();
-  }
-}
-
-function setCPType(type) {
-  cpPayType = type;
-  ['cash','cheque','partial'].forEach(t => {
-    const el = document.getElementById('cp-tab-' + t);
-    if (el) el.classList.toggle('active', t === type);
-  });
-  const chequeFields = document.getElementById('cp-cheque-fields');
-  const partialInfo = document.getElementById('cp-partial-info');
-  if (chequeFields) chequeFields.style.display = type === 'cheque' ? 'block' : 'none';
-  if (partialInfo) partialInfo.style.display = type === 'partial' ? 'block' : 'none';
-}
-
-function setCPPrint(type) {
-  cpPrintType = type;
-  ['a4','thermal','none'].forEach(t => {
-    const el = document.getElementById('cp-print-' + t);
-    if (el) el.classList.toggle('active', t === type);
-  });
-}
-
-function openAddStockModal() {
-  dbGetAll('products').then(prods => {
-    const sel = document.getElementById('adj-product');
-    sel.innerHTML = prods.sort((a,b)=>a.name.localeCompare(b.name)).map(p => `<option value="${p.product_id}">${p.name}</option>`).join('');
-    document.getElementById('adj-qty').value = '';
-    document.getElementById('adj-note').value = '';
-    document.getElementById('adj-location').value = currentInvTab === 'warehouse' ? 'warehouse' : 'truck';
-    openModal('stock-modal');
-  });
-}
 
 async function adjustStock() {
   const productId = parseInt(document.getElementById('adj-product').value);
