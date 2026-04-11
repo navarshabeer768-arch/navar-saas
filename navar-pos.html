@@ -6199,7 +6199,7 @@ function openTruckLoadModal(productId, name, truckQty, whQty, cpb) {
   openModal('truckload-modal');
 }
 
-async async function confirmTruckLoad() {
+async function confirmTruckLoad() {
   const productId = parseInt(document.getElementById('tl-product-id').value);
   const boxes = parseInt(document.getElementById('tl-qty').value) || 0;
   if (boxes <= 0) { showToast('⚠️ Enter valid quantity!'); return; }
