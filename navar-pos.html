@@ -6135,12 +6135,16 @@ async function loadTruckScreen() {
   const whMap = {}; products.forEach(p => whMap[p.id||p.product_id] = parseFloat(p.stock||p.stock_quantity||0));
 
   let truckTotalBoxes = 0, whTotalBoxes = 0;
+
   products.forEach(p => {
-    const cpb = getCasesPerBox(p) || 1;
-    truckTotalBoxes += Math.floor(truckQty / (cpb||4));
+    const cpb = getCasesPerBox(p) || 4;
+    let truckQty = parseFloat(truckStock[p.id||p.product_id] || truckStock[p.product_id] || 0);
+    try { var lsT=JSON.parse(localStorage.getItem("truck_stock_"+STORE_ID+"_"+(sel?sel.value||"admin":"admin"))||"{}"); var lsQ=parseFloat(lsT[p.id||p.product_id]||0); if(lsQ>truckQty)truckQty=lsQ; } catch(e) {}
+    truckTotalBoxes += Math.floor(truckQty / cpb);
     whTotalBoxes += Math.floor(parseFloat(whMap[p.id||p.product_id]||0) / cpb);
   });
   document.getElementById('tl-truck-total').textContent = truckTotalBoxes + ' boxes';
+  document.getElementById('tl-warehouse-total').textContent = whTotalBoxes + ' boxes';
   document.getElementById('tl-warehouse-total').textContent = whTotalBoxes + ' boxes';
 
   const list = document.getElementById('truckload-list');
@@ -6148,8 +6152,8 @@ async function loadTruckScreen() {
 
   list.innerHTML = products.map(p => {
     const cpb = getCasesPerBox(p);
-    const truckQty = parseFloat(truckStock[p.id||p.product_id] || truckStock[p.product_id] || 0);
-    // Also check localStorage truck stock
+
+    let truckQty = parseFloat(truckStock[p.id||p.product_id] || truckStock[p.product_id] || 0);
     var lsTruckKey = 'truck_stock_' + STORE_ID + '_' + (sel ? sel.value || 'admin' : 'admin');
     try {
       var lsTruck = JSON.parse(localStorage.getItem(lsTruckKey) || '{}');
