@@ -1824,6 +1824,9 @@ async function dbAdd(table, data) {
   // Sanitize input data to remove any non-cloneable objects
   const safeData = JSON.parse(JSON.stringify(data));
   if (!safeData.store_id) safeData.store_id = STORE_ID;
+  // Remove columns that don't exist in this table's schema
+  const colsToRemove = REMOVE_COLUMNS[table] || [];
+  colsToRemove.forEach(col => delete safeData[col]);
   try {
     const result = await Promise.race([
       sb.from(table).insert(safeData).select().single(),
@@ -2233,9 +2236,7 @@ async function loadPOSScreen() {
   // Load products
   const prods = await dbGetAll('products');
   const invMap = await getMyTruckQtyMap(); // settings-based truck stock
-  const wh = Promise.resolve([]);
-  const whMap = {};
-  wh.forEach(w => whMap[w.product_id] = w.quantity);
+  const whMap = {}; // warehouse_stock not used - products.stock is the source of truth
   // Categories
   const cats = ['All', ...new Set(prods.map(p => p.category))];
   const catDiv = document.getElementById('pos-categories');
@@ -2704,7 +2705,7 @@ async function completeOrder() {
       try {
         const prods = await dbGetAll('products');
         const invMap = await getMyTruckQtyMap(); // settings-based truck stock
-        const wh = Promise.resolve([]);
+        const wh = [];
         const whMap = {}; wh.forEach(w => whMap[w.product_id] = w.quantity);
         window._posProducts = prods.map(p => ({...p, truckQty: invMap[p.product_id]||0, warehouseQty: whMap[p.product_id]||0}));
       } catch(e) {}
@@ -2723,101 +2724,77 @@ async function completeOrder() {
 async function loadInventory() {
   delete localCache['products'];
   const products = await dbGetAll('products');
-  const owner = getCurrentTruckOwner();
-  
   const container = document.getElementById('inventory-list');
   if (!container) return;
-  
   if (!products.length) {
-    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📦</div><div class="empty-state-text">No products</div></div>';
+    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📦</div><div class="empty-state-text">No products yet</div></div>';
     return;
   }
-  
-  // Totals using products.stock (updated by Finance purchases)
-  const totalWHBoxes = products.reduce((a,p) => {
-    const cpb = parseInt(p.cases_per_box || 4);
-    return a + Math.floor((parseFloat(p.stock||0)) / cpb);
-  }, 0);
-  
-  const totalTruckBoxes = 0; // Truck stock not tracked in this version
-  
-  const elWH = document.getElementById('inv-wh-boxes');
-  const elTruck = document.getElementById('inv-truck-boxes');
-  if (elWH) elWH.textContent = totalWHBoxes + ' boxes';
-  if (elTruck) elTruck.textContent = totalTruckBoxes + ' boxes';
-  
-  container.innerHTML = products.map(p => {
-    const cpb = parseInt(p.cases_per_box || 4);
-    const totalUnits = parseFloat(p.stock || p.stock_quantity || 0);
-    const whBoxes = Math.floor(totalUnits / cpb);
-    const whRem = totalUnits % cpb;
-    const whDisplay = whBoxes + (whRem > 0 ? ' + ' + whRem + ' units' : '');
-    const isLow = totalUnits <= (p.min_stock || p.low_stock_threshold || 10);
-    return '<div class="inv-item">' +
-      '<div class="inv-item-icon">' + (p.icon||'📦') + '</div>' +
-      '<div class="inv-item-info">' +
-        '<div class="inv-item-name">' + p.name + '</div>' +
-        '<div class="inv-item-sub">' + (p.category||'—') + ' · ' + cpb + ' cases/box</div>' +
-      '</div>' +
-      '<div class="inv-item-stock">' +
-        '<div class="' + (isLow ? 'color-red' : 'color-green') + ' fw-800">' + whBoxes + ' boxes</div>' +
-        '<div style="font-size:.7rem;color:var(--text3);">🏭 Warehouse: ' + whDisplay + '</div>' +
-        '<div style="font-size:.7rem;color:var(--text3);">🚛 Truck: 0 boxes</div>' +
-      '</div>' +
-      '<div class="inv-item-btns">' +
-        '<button class="btn btn-primary btn-sm" onclick="loadToTruck(' + p.id + ')">🚛 Load</button>' +
-        '<button class="btn btn-outline btn-sm" onclick="returnFromTruck(' + p.id + ')">↩ Return</button>' +
-      '</div>' +
-    '</div>';
-  }).join('');
-}
-
-
-
-// ── Inventory tab switching ─────────────────────────────────────
-function switchInvTab(tab) {
-  var tabs = ['truck', 'warehouse', 'count'];
-  tabs.forEach(function(t) {
-    var btn = document.getElementById('inv-tab-' + t);
-    if (btn) btn.classList.toggle('active', t === tab);
+  const truckStockMap = getMyTruckQtyMapSync(); // truck stock from localStorage
+  // Separate by category
+  const cats = {};
+  products.forEach(function(p) {
+    var cat = p.category || 'Other';
+    if (!cats[cat]) cats[cat] = [];
+    cats[cat].push(p);
   });
-  var invList = document.getElementById('inventory-list');
-  var countSection = document.getElementById('stock-count-section');
-  var truckSection = document.getElementById('truck-load-section');
-  
-  if (tab === 'count') {
-    if (countSection) countSection.style.display = '';
-    if (invList) invList.style.display = 'none';
-    if (truckSection) truckSection.style.display = 'none';
-  } else if (tab === 'truck') {
-    if (countSection) countSection.style.display = 'none';
-    if (invList) invList.style.display = 'none';
-    if (truckSection) { truckSection.style.display = ''; loadTruckScreen(); }
-    else loadInventory();
-  } else {
-    if (countSection) countSection.style.display = 'none';
-    if (truckSection) truckSection.style.display = 'none';
-    if (invList) { invList.style.display = ''; loadInventory(); }
+  var html = '';
+  // Low stock alerts
+  var lowProds = products.filter(function(p) {
+    return parseFloat(p.stock||0) <= parseFloat(p.min_stock||p.low_stock_threshold||10);
+  });
+  if (lowProds.length) {
+    html += '<div class="alert alert-warning" style="margin-bottom:12px;">⚠️ Out of stock: ' +
+      lowProds.map(function(p){ return p.name; }).join(', ') + '</div>';
   }
+  Object.keys(cats).forEach(function(cat) {
+    html += '<div style="font-weight:700;color:var(--navy);margin:12px 0 6px;font-size:.9rem;">' + cat + '</div>';
+    cats[cat].forEach(function(p) {
+      var cpb = parseInt(p.cases_per_box || 4);
+      var totalUnits = parseFloat(p.stock || p.stock_quantity || 0);
+      var whBoxes = Math.floor(totalUnits / cpb);
+      var whRem = Math.round(totalUnits % cpb);
+      var whFmt = whBoxes + (whRem > 0 ? ' boxes + ' + whRem + ' bags' : ' boxes');
+      var truckUnits = parseFloat(truckStockMap[p.id||p.product_id] || 0);
+      var truckBoxes = Math.floor(truckUnits / cpb);
+      var truckRem = Math.round(truckUnits % cpb);
+      var truckFmt = truckBoxes + (truckRem > 0 ? ' boxes + ' + truckRem + ' bags' : ' boxes');
+      var displayQty = truckBoxes;
+      var displayFmt = truckFmt;
+      var isLow = truckUnits <= 0;
+      var photo = p.photo ? ('<img src="' + p.photo + '" style="width:48px;height:48px;border-radius:8px;object-fit:cover;">') : 
+        '<div style="width:48px;height:48px;background:var(--bg2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;">' + (p.icon||'📦') + '</div>';
+      html += '<div class="card" style="margin-bottom:8px;padding:14px;">' +
+        '<div style="display:flex;align-items:center;gap:12px;">' +
+          photo +
+          '<div style="flex:1;">' +
+            '<div style="font-weight:700;font-size:.95rem;">' + p.name + '</div>' +
+            '<div style="font-size:.75rem;color:var(--text2);">' + (p.category||'—') + ' · Cost: QR ' + parseFloat(p.cost||p.cost_price||0).toFixed(2) + ' · Sell: QR ' + parseFloat(p.price||p.selling_price||0).toFixed(2) + '</div>' +
+            '<div style="font-size:.75rem;color:var(--text2);">📦 ' + cpb + ' cases/box · Low alert: ' + (p.min_stock||p.low_stock_threshold||10) + '</div>' +
+            '<div style="font-size:.8rem;margin-top:4px;">' +
+              '<span style="color:var(--navy);font-weight:600;">🚛 Truck: ' + truckFmt + '</span>' +
+              '&nbsp;&nbsp;<span style="color:var(--green);font-weight:600;">🏭 WH: ' + whFmt + '</span>' +
+            '</div>' +
+          '</div>' +
+          '<div style="text-align:right;">' +
+            '<div style="font-size:1.3rem;font-weight:800;color:' + (isLow ? 'var(--red)' : 'var(--navy)') + ';">' + displayFmt + '</div>' +
+            '<div style="font-size:.7rem;color:var(--text2);">🚛 Truck</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    });
+  });
+  container.innerHTML = html;
 }
 
-// ── Truck load/return (uses products.stock) ─────────────────────
-async function loadToTruck(productId) {
-  var qty = prompt('How many boxes to load onto truck?', '1');
-  if (!qty || isNaN(qty) || parseInt(qty) <= 0) return;
-  var boxes = parseInt(qty);
-  var cpb = 4;
-  var units = boxes * cpb;
-  // Deduct from warehouse (products.stock) - in a real system truck stock is separate
-  // For now just show a toast since we use products.stock as warehouse
-  showToast('✅ Loaded ' + boxes + ' boxes (' + units + ' units) onto truck');
+function getMyTruckQtyMapSync() {
+  try {
+    var stored = localStorage.getItem('truck_stock_' + STORE_ID + '_admin');
+    if (stored) return JSON.parse(stored);
+  } catch(e) {}
+  return {};
 }
 
-async function returnFromTruck(productId) {
-  var qty = prompt('How many boxes to return from truck?', '1');
-  if (!qty || isNaN(qty) || parseInt(qty) <= 0) return;
-  showToast('✅ Returned ' + parseInt(qty) + ' boxes to warehouse');
-}
 
 async function adjustStock() {
   const productId = parseInt(document.getElementById('adj-product').value);
@@ -2851,7 +2828,7 @@ async function loadStockCountSheet() {
     scOwner = localStorage.getItem('employee_name') || 'Admin';
   }
   const truckStock = await loadTruckStock(scOwner);
-  const wh = Promise.resolve([]);
+  const wh = [];
   const invMap = truckStock; // already {product_id: qty}
   const whMap = {}; wh.forEach(w => whMap[w.product_id] = w.quantity);
   const list = document.getElementById('stock-count-list');
@@ -2967,7 +2944,6 @@ async function saveCustomer() {
   // Base data WITHOUT credit_limit — always works even if column missing
   const baseData = {
     name,
-    contact_person: document.getElementById('cust-contact').value,
     phone: document.getElementById('cust-phone').value,
     address: document.getElementById('cust-address').value,
     credit_balance: 0,
@@ -4326,7 +4302,7 @@ async function loadStockCount(mode) {
   // Load truck stock from settings (per-employee)
   const truckStock = await loadTruckStock(scOwner);
   const truckMap = {}; Object.entries(truckStock).forEach(([pid,qty]) => truckMap[parseInt(pid)] = qty||0);
-  const wh = Promise.resolve([]);
+  const wh = [];
   const whMap = {}; wh.forEach(i=>whMap[i.product_id]=i.quantity||0);
   const list = document.getElementById('stockcount-list');
   if (!list) return;
@@ -4639,7 +4615,7 @@ async function printStockCount() {
   const s = settings;
   const prods = await dbGetAll('products');
   const truck = Promise.resolve([]);
-  const wh = Promise.resolve([]);
+  const wh = [];
   const truckMap = {}; truck.forEach(i=>truckMap[i.product_id]=i.quantity||0);
   const whMap = {}; wh.forEach(i=>whMap[i.product_id]=i.quantity||0);
   const mode = currentStockCountMode;
@@ -5763,7 +5739,7 @@ function closeInvoiceViewer() {
         try {
           const prods = await dbGetAll('products');
           const inv = Promise.resolve([]);
-          const wh = Promise.resolve([]);
+          const wh = [];
           const invMap = {}; inv.forEach(i => invMap[i.product_id] = i.quantity);
           const whMap = {}; wh.forEach(w => whMap[w.product_id] = w.quantity);
           window._posProducts = prods.map(p => ({...p, truckQty: invMap[p.product_id]||0, warehouseQty: whMap[p.product_id]||0}));
@@ -7536,3 +7512,12 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 
 </body>
 </html>
+function loadToTruck(productId) {
+  var p = (window._posProducts||[]).find(function(x){ return String(x.id||x.product_id) === String(productId); });
+  openTruckLoadModal(productId, p ? p.name : 'Product');
+}
+function returnFromTruck(productId) {
+  var p = (window._posProducts||[]).find(function(x){ return String(x.id||x.product_id) === String(productId); });
+  openTruckReturnModal(productId, p ? p.name : 'Product');
+}
+
