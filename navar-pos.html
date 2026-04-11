@@ -2716,7 +2716,7 @@ async function completeOrder() {
 // ═══════════════════════════════════════════════
 // INVENTORY
 // ═══════════════════════════════════════════════
-async async function loadInventory() {
+async function loadInventory() {
   delete localCache['products'];
   const products = await dbGetAll('products');
   const owner = getCurrentTruckOwner();
