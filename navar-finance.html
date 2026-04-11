@@ -811,7 +811,7 @@ tr:hover td{background:#f8f9ff;}
     <div style="margin:16px 0 8px;font-weight:700;font-size:.9rem;color:var(--text1);">Products</div>
     <div id="po-lines-container">
       <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 32px;gap:6px;margin-bottom:4px;font-size:.75rem;color:var(--text2);font-weight:600;">
-        <span>Product</span><span>Qty</span><span>Unit Price (QR)</span><span>Total</span><span></span>
+        <span>Product</span><span>Qty (Boxes)</span><span>Unit Price (QR)</span><span>Total</span><span></span>
       </div>
       <div id="po-lines"></div>
     </div>
@@ -1783,8 +1783,11 @@ function loadProducts() {
     const cpb = p.cases_per_box || 4;
     const whBags = parseFloat(whMap[p.id||p.product_id||p.pos_id] || 0);
     const trBags = parseFloat(trMap[p.id||p.product_id||p.pos_id] || 0);
-    const whFmt = fmtStock(whBags, cpb);
-    const trFmt = fmtStock(trBags, cpb);
+    // whBags = units in stock. Show as boxes + remainder
+    const whBoxes = Math.floor(whBags / (cpb > 1 ? cpb : 1));
+    const whRem = whBags % (cpb > 1 ? cpb : 1);
+    const whFmt = whBags === 0 ? '0 units' : (cpb > 1 ? whBoxes + ' boxes' + (whRem > 0 ? ' + ' + whRem + ' units' : '') : whBags + ' units');
+    const trFmt = trBags === 0 ? '0 units' : trBags + ' units';
     const sellP = parseFloat(p.price||p.sell_price||p.selling_price||0);
     const costP = parseFloat(p.cost||p.cost_price||0);
     const marginCalc = sellP && costP ? (((sellP-costP)/sellP)*100).toFixed(0) : 0;
@@ -2495,7 +2498,9 @@ function renderPOLines() {
   poLines.forEach(function(line, idx) {
     var opts = '<option value="">Select product...</option>' +
       prods.map(function(p) {
-        return '<option value="' + p.id + '"' + (String(p.id) === String(line.productId) ? ' selected' : '') + '>' + p.name + '</option>';
+        var cpb = parseInt(p.cases_per_box || 1);
+        var cpbText = cpb > 1 ? ' (' + cpb + ' units/box)' : '';
+        return '<option value="' + p.id + '"' + (String(p.id) === String(line.productId) ? ' selected' : '') + '>' + p.name + cpbText + '</option>';
       }).join('');
     var totalVal = (parseFloat(line.qty)||0) * (parseFloat(line.unitPrice)||0);
     line.total = totalVal;
@@ -2516,6 +2521,7 @@ function poLineProduct(idx, val) {
   var prod = pdGet("products").find(function(p){ return String(p.id) === String(val); });
   poLines[idx].productName = prod ? prod.name : '';
   poLines[idx].unitPrice = prod ? parseFloat(prod.cost || prod.cost_price || 0) : 0;
+  poLines[idx].cpb = prod ? parseInt(prod.cases_per_box || 1) : 1;
   poLines[idx].total = (poLines[idx].qty || 1) * poLines[idx].unitPrice;
   renderPOLines();
 }
@@ -2597,9 +2603,14 @@ async function savePurchaseOrder() {
         console.log('Product fetch result:', res.data, res.error);
         if (!res.error && res.data) {
           var currentStock = parseFloat(res.data.stock) || 0;
-          var addQty = parseFloat(line.qty) || 0;
-          var newStock = currentStock + addQty;
-          console.log('Updating stock:', res.data.name, currentStock, '+', addQty, '=', newStock);
+          var boxesPurchased = parseFloat(line.qty) || 0;
+          // Get cases_per_box: how many units per box
+          var prodInfo = posData.products.find(function(x){ return parseInt(x.id) === pid; });
+          var cpb = parseInt((prodInfo && prodInfo.cases_per_box) || 1);
+          // Stock is tracked in UNITS: boxes × units_per_box
+          var addUnits = boxesPurchased * cpb;
+          var newStock = currentStock + addUnits;
+          console.log('Updating stock:', res.data.name, currentStock, '+ (' + boxesPurchased + ' boxes × ' + cpb + ' cpb) =', newStock);
           var upd = await sb.from('products').update({ stock: newStock }).eq('id', pid);
           console.log('Stock update result:', upd.error || 'OK');
           if (!upd.error) {
@@ -2614,7 +2625,9 @@ async function savePurchaseOrder() {
           // Try without store_id filter
           var res2 = await sb.from('products').select('id,stock,name').eq('id', pid).single();
           if (!res2.error && res2.data) {
-            var newStock2 = (parseFloat(res2.data.stock)||0) + (parseFloat(line.qty)||0);
+            var prodInfo2 = posData.products.find(function(x){ return parseInt(x.id) === pid; });
+            var cpb2 = parseInt((prodInfo2 && prodInfo2.cases_per_box) || 1);
+            var newStock2 = (parseFloat(res2.data.stock)||0) + (parseFloat(line.qty)||0) * cpb2;
             var upd2 = await sb.from('products').update({ stock: newStock2 }).eq('id', pid);
             if (!upd2.error) {
               updated++;
