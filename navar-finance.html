@@ -980,6 +980,11 @@ async function dbDelete(table, id) {
 
 // ── POS data from Supabase (shared with Finance) ────────────
 var posData = { invoices:[], customers:[], products:[], expenses:[], warehouse_stock:[], inventory:[] };
+
+// Safe accessor - always returns array
+function pdGet(key) {
+  return (posData && Array.isArray(posData[key])) ? posData[key] : [];
+}
 var FIN_STORE_ID   = localStorage.getItem('navar_store_id') || localStorage.getItem('fin_store_id') || 'default';
 var FIN_STORE_NAME = localStorage.getItem('navar_store_name') || 'Navar Finance';
 var FIN_STORE_PASS = '';
@@ -1192,12 +1197,12 @@ let chartRevExp = null, chartBreakdown = null;
 function loadDashboard() {
   const period = document.getElementById('dash-period').value;
   const { from, to } = getDateRange(period);
-  const invs = posData.invoices.filter(i => i.date >= from && i.date <= to);
+  const invs = pdGet("invoices").filter(i => i.date >= from && i.date <= to);
   const revenue = invs.reduce((a, i) => a + parseFloat(i.total_amount || 0), 0);
-  const creditTotal = posData.customers.reduce((a, c) => a + (c.credit_balance || 0), 0);
+  const creditTotal = pdGet("customers").reduce((a, c) => a + (c.credit_balance || 0), 0);
   // Expenses from finance + POS expenses
   const finExp = lsGet('transactions').filter(t => t.type === 'expense' && t.date >= from && t.date <= to).reduce((a, t) => a + t.amount, 0);
-  const posExp = posData.expenses.filter(e => e.date >= from && e.date <= to).reduce((a, e) => a + (e.amount || 0), 0);
+  const posExp = pdGet("expenses").filter(e => e.date >= from && e.date <= to).reduce((a, e) => a + (e.amount || 0), 0);
   const salaries = lsGet('payroll').filter(p => p.month >= from.slice(0, 7)).reduce((a, p) => a + p.net_pay, 0);
   const purchases = getPurchaseOrders().filter(p => p.date >= from && p.date <= to).reduce((a, p) => a + p.amount, 0);
   const totalExp = finExp + posExp + salaries + purchases;
@@ -1213,7 +1218,7 @@ function loadDashboard() {
 
   // Top customers
   const custMap = {};
-  posData.customers.forEach(c => custMap[c.customer_id] = c);
+  pdGet("customers").forEach(c => custMap[c.customer_id] = c);
   const custRev = {};
   invs.forEach(i => {
     const id = i.customer_id;
@@ -1228,10 +1233,10 @@ function loadDashboard() {
 
   // Top products
   const prodMap = {};
-  posData.products.forEach(p => prodMap[p.product_id] = p);
+  pdGet("products").forEach(p => prodMap[p.product_id] = p);
   const invIds = new Set(invs.map(i => i.invoice_id));
   const prodRev = {};
-  posData.invoice_items.filter(it => invIds.has(it.invoice_id)).forEach(it => {
+  ([]).filter(it => invIds.has(it.invoice_id)).forEach(it => {
     if (!prodRev[it.product_id]) prodRev[it.product_id] = { qty: 0, rev: 0 };
     prodRev[it.product_id].qty += it.quantity || 0;
     prodRev[it.product_id].rev += it.total || 0;
@@ -1252,7 +1257,7 @@ function buildRevExpChart(from, to) {
   if (chartRevExp) chartRevExp.destroy();
   // Group by month
   const months = {};
-  posData.invoices.filter(i => i.date >= from && i.date <= to).forEach(i => {
+  pdGet("invoices").filter(i => i.date >= from && i.date <= to).forEach(i => {
     const m = i.date.slice(0, 7);
     if (!months[m]) months[m] = { rev: 0, exp: 0 };
     months[m].rev += i.total_amount || 0;
@@ -1295,7 +1300,7 @@ function buildBreakdownChart(revenue, totalExp, purchases, salaries, other) {
 function loadPL() {
   const from = document.getElementById('pl-from').value || monthStart();
   const to = document.getElementById('pl-to').value || today();
-  const invs = posData.invoices.filter(i => i.date >= from && i.date <= to);
+  const invs = pdGet("invoices").filter(i => i.date >= from && i.date <= to);
   const revenue = invs.reduce((a, i) => a + parseFloat(i.total_amount || 0), 0);
   const cashSales = invs.filter(i => i.payment_type === 'cash').reduce((a, i) => a + parseFloat(i.total_amount || 0), 0);
   const creditSales = invs.filter(i => i.payment_type === 'credit').reduce((a, i) => a + parseFloat(i.total_amount || 0), 0);
@@ -1307,7 +1312,7 @@ function loadPL() {
   // Fallback: products.cost_price / cases_per_box if cost column is 0
   const invIds = new Set(invs.map(i => i.invoice_id));
   const prodMap = {};
-  posData.products.forEach(p => { prodMap[p.product_id] = p; });
+  pdGet("products").forEach(p => { prodMap[p.product_id] = p; });
   const finProds = lsGet('products');
   const finProdMap = {};
   finProds.forEach(p => { if (p.pos_id) finProdMap[parseInt(p.pos_id)] = p; });
@@ -1342,7 +1347,7 @@ function loadPL() {
 
   const salaries = lsGet('payroll').filter(p => p.month >= from.slice(0, 7) && p.month <= to.slice(0, 7)).reduce((a, p) => a + p.net_pay, 0);
   const finExp = lsGet('transactions').filter(t => t.type === 'expense' && t.date >= from && t.date <= to);
-  const posExp = posData.expenses.filter(e => e.date >= from && e.date <= to);
+  const posExp = pdGet("expenses").filter(e => e.date >= from && e.date <= to);
   const expByCategory = {};
   [...finExp, ...posExp.map(e => ({ category: e.category || 'Other', amount: e.amount }))].forEach(e => {
     expByCategory[e.category] = (expByCategory[e.category] || 0) + e.amount;
@@ -1399,9 +1404,9 @@ function loadPL() {
 // ═══════════════════════════════════════════
 function loadBalanceSheet() {
   const asOf = document.getElementById('bs-date').value || today();
-  const invs = posData.invoices.filter(i => i.date <= asOf);
+  const invs = pdGet("invoices").filter(i => i.date <= asOf);
   const totalRevenue = invs.reduce((a, i) => a + (i.total_amount || 0), 0);
-  const totalCredit = posData.customers.reduce((a, c) => a + (c.credit_balance || 0), 0);
+  const totalCredit = pdGet("customers").reduce((a, c) => a + (c.credit_balance || 0), 0);
   const cashSales = invs.filter(i => i.payment_type === 'cash' || i.payment_type === 'cheque').reduce((a, i) => a + (i.total_amount || 0), 0);
   const totalPurchases = getPurchaseOrders().filter(p => p.date <= asOf).reduce((a, p) => a + p.amount, 0);
   const totalSalaries = lsGet('payroll').reduce((a, p) => a + p.net_pay, 0);
@@ -1462,13 +1467,13 @@ function loadTransactions() {
   const to = document.getElementById('inc-to').value || today();
   const all = lsGet('transactions');
   // Add POS sales as income
-  const posSales = posData.invoices.filter(i => i.date >= from && i.date <= to).map(i => ({
+  const posSales = pdGet("invoices").filter(i => i.date >= from && i.date <= to).map(i => ({
     id: 'pos-' + i.invoice_id, date: i.date, type: 'income',
     category: 'Sales', description: `Invoice #${String(i.invoice_id).padStart(4,'0')}`,
     amount: i.total_amount, ref: i.payment_type, fromPOS: true
   }));
   // Add POS expenses
-  const posExpenses = posData.expenses.filter(e => e.date >= from && e.date <= to).map(e => ({
+  const posExpenses = pdGet("expenses").filter(e => e.date >= from && e.date <= to).map(e => ({
     id: 'posexp-' + e.expense_id, date: e.date, type: 'expense',
     category: e.category || 'Expense', description: e.description || 'POS Expense',
     amount: e.amount, ref: 'POS', fromPOS: true
@@ -1676,8 +1681,8 @@ function loadLedger() {
   const custId = document.getElementById('ledger-customer').value;
   const from = document.getElementById('ledger-from').value || monthStart();
   const to = document.getElementById('ledger-to').value || today();
-  const custMap = {}; posData.customers.forEach(c => custMap[c.customer_id] = c);
-  let invs = posData.invoices.filter(i => i.date >= from && i.date <= to);
+  const custMap = {}; pdGet("customers").forEach(c => custMap[c.customer_id] = c);
+  let invs = pdGet("invoices").filter(i => i.date >= from && i.date <= to);
   if (custId) invs = invs.filter(i => String(i.customer_id) === custId);
   const totalSales = invs.reduce((a, i) => a + (i.total_amount || 0), 0);
   const totalCredit = invs.filter(i => i.payment_type === 'credit').reduce((a, i) => a + (i.total_amount || 0), 0);
@@ -1709,10 +1714,10 @@ function loadLedger() {
 function loadAging() {
   const asOf = document.getElementById('aging-date').value || today();
   const asOfDate = new Date(asOf);
-  const custMap = {}; posData.customers.forEach(c => custMap[c.customer_id] = c);
+  const custMap = {}; pdGet("customers").forEach(c => custMap[c.customer_id] = c);
   // Group credit invoices by customer
   const custAging = {};
-  posData.invoices.filter(i => (i.payment_type === 'credit' || i.payment_type === 'partial') && i.date <= asOf).forEach(inv => {
+  pdGet("invoices").filter(i => (i.payment_type === 'credit' || i.payment_type === 'partial') && i.date <= asOf).forEach(inv => {
     const id = inv.customer_id;
     if (!custAging[id]) custAging[id] = { current: 0, d31: 0, d61: 0, d90: 0 };
     const invDate = new Date(inv.date);
@@ -2181,7 +2186,7 @@ function openAddImportCostModal() {
 function loadCOGS() {
   const from = document.getElementById('cogs-from').value || monthStart();
   const to = document.getElementById('cogs-to').value || today();
-  const invs = posData.invoices.filter(i => i.date >= from && i.date <= to);
+  const invs = pdGet("invoices").filter(i => i.date >= from && i.date <= to);
   const revenue = invs.reduce((a,i) => a+(i.total_amount||0), 0);
   const purchaseCost = lsGet('purchase_orders').filter(o => o.date>=from && o.date<=to).reduce((a,o)=>a+o.total,0);
   const importCosts = lsGet('import_costs').filter(c => c.date>=from && c.date<=to).reduce((a,c)=>a+c.amount,0);
@@ -2706,7 +2711,7 @@ function showToast(msg, type) {
 function loadCOGS() {
   var from = document.getElementById('cogs-from') ? document.getElementById('cogs-from').value : monthStart();
   var to = document.getElementById('cogs-to') ? document.getElementById('cogs-to').value : today();
-  var invs = posData.invoices.filter(function(i){ return i.date >= from && i.date <= to; });
+  var invs = pdGet("invoices").filter(function(i){ return i.date >= from && i.date <= to; });
   var revenue = invs.reduce(function(a,i){ return a+(parseFloat(i.total_amount||i.total||0)); }, 0);
   var purchases = lsGet('purchase_orders').filter(function(o){ return o.date >= from && o.date <= to; });
   var purchaseCost = purchases.reduce(function(a,o){ return a+(o.total||0); }, 0);
