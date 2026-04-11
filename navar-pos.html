@@ -4259,7 +4259,7 @@ async function renderCreditBalances() {
     `</tbody></table></div>` : '<div class="alert alert-success">✅ All customers have cleared their credit!</div>');
 }
 
-async async function renderLowStock() {
+async function renderLowStock() {
   delete localCache['products'];
   const prods = await dbGetAll('products');
   const invMap = {}; prods.forEach(p => invMap[p.product_id||p.id] = parseFloat(p.stock||p.stock_quantity||0));
