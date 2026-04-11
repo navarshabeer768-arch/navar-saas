@@ -1318,8 +1318,7 @@ function loadPL() {
   finProds.forEach(p => { if (p.pos_id) finProdMap[parseInt(p.pos_id)] = p; });
 
   const cogsByProduct = {};
-  posData.invoice_items
-    .filter(it => invIds.has(it.invoice_id) || invIds.has(String(it.invoice_id)))
+  ([]).filter(it => invIds.has(it.invoice_id) || invIds.has(String(it.invoice_id)))
     .forEach(it => {
       const pid = parseInt(it.product_id);
       const prod = prodMap[pid] || {};
@@ -1755,14 +1754,18 @@ function switchProductTab(tab) {
 }
 
 function loadProducts() {
-  const products = lsGet('products');
+  // Use Supabase products (posData) or fall back to localStorage
+  var sbProds = pdGet("products");
+  var lsProds = lsGet('products');
+  // Merge: Supabase products take priority, add any localStorage-only ones
+  var products = sbProds.length ? sbProds : lsProds;
   const search = (document.getElementById('prod-search')?.value||'').toLowerCase();
-  const filtered = products.filter(p => !search || p.name.toLowerCase().includes(search));
+  const filtered = products.filter(p => !search || (p.name||'').toLowerCase().includes(search));
   document.getElementById('prod-count').textContent = products.length;
 
   // Real stock from Supabase sync
-  const whMap = {}; (posData.warehouse_stock||[]).forEach(w => whMap[w.product_id] = w.quantity||0);
-  const trMap = {}; (posData.inventory||[]).forEach(t => trMap[t.product_id] = t.quantity||0);
+  const whMap = {}; pdGet("warehouse_stock").forEach(w => whMap[w.product_id] = w.quantity||0);
+  const trMap = {}; pdGet("inventory").forEach(t => trMap[t.product_id] = t.quantity||0);
 
   let totalWHBags = 0, totalWHValue = 0, totalWHBoxes = 0;
   products.forEach(p => {
@@ -2484,7 +2487,7 @@ function removePOLine(idx) {
 }
 
 function renderPOLines() {
-  var prods = posData.products;
+  var prods = pdGet("products");
   var html = '';
   poLines.forEach(function(line, idx) {
     var opts = '<option value="">Select product...</option>' +
@@ -2503,7 +2506,7 @@ function renderPOLines() {
 
 function poLineProduct(idx, val) {
   poLines[idx].productId = val;
-  var prod = posData.products.find(p => String(p.id) === String(val));
+  var prod = pdGet("products").find(p => String(p.id) === String(val));
   poLines[idx].productName = prod ? prod.name : '';
   poLines[idx].unitPrice = prod ? parseFloat(prod.cost || prod.cost_price || 0) : 0;
   poLines[idx].total = poLines[idx].qty * poLines[idx].unitPrice;
@@ -2574,7 +2577,7 @@ async function savePurchaseOrder() {
           await sb.from('products').update({stock: newStock}).eq('id', line.productId);
           updated++;
           // Update local posData too
-          var p = posData.products.find(x => String(x.id) === String(line.productId));
+          var p = pdGet("products").find(x => String(x.id) === String(line.productId));
           if (p) { p.stock = newStock; p.stock_quantity = newStock; }
         } else { failed.push(line.productName); }
       } catch(e) { failed.push(line.productName + ': ' + e.message); }
