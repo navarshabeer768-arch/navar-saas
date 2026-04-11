@@ -1803,6 +1803,10 @@ async function dbGet(table, id) {
 }
 
 async function dbGetByIndex(table, col, val) {
+  // Skip tables not in our Supabase schema
+  if (!VALID_TABLES.has(table)) {
+    return (localCache[table] || []).filter(r => r[col] == val);
+  }
   try {
     if (isOnline) {
       const { data } = await Promise.race([
