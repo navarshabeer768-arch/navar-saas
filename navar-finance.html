@@ -1785,11 +1785,14 @@ function loadProducts() {
     const whFmt = fmtStock(whBags, cpb);
     const trFmt = fmtStock(trBags, cpb);
     const margin = p.sell_price && p.cost_price ? (((p.sell_price-p.cost_price)/p.sell_price)*100).toFixed(0) : 0;
+    const sellP = parseFloat(p.price||p.sell_price||p.selling_price||0);
+    const costP = parseFloat(p.cost||p.cost_price||0);
+    const marginCalc = sellP && costP ? (((sellP-costP)/sellP)*100).toFixed(0) : 0;
     return `<tr>
       <td><strong>${p.icon||'📦'} ${p.name}</strong><div style="font-size:11px;color:var(--text2);">📦 ${cpb} bags/box · ${p.unit||''}</div></td>
       <td><span class="badge badge-blue">${p.category||'—'}</span></td>
-      <td style="font-weight:700;color:var(--green);">${fmt(p.sell_price||0)}</td>
-      <td>${fmt(p.cost_price||0)} <small style="color:var(--text2);">(${margin}%)</small></td>
+      <td style="font-weight:700;color:var(--green);">${fmt(sellP)}</td>
+      <td>${fmt(costP)} <small style="color:var(--text2);">(${marginCalc}%)</small></td>
       <td style="font-weight:700;color:var(--green);">${whFmt}</td>
       <td style="font-weight:700;color:var(--navy);">${trFmt}</td>
       <td>
@@ -2491,13 +2494,17 @@ function renderPOLines() {
   var html = '';
   poLines.forEach(function(line, idx) {
     var opts = '<option value="">Select product...</option>' +
-      prods.map(p => '<option value="' + p.id + '"' + (p.id == line.productId ? ' selected' : '') + '>' + p.name + '</option>').join('');
-    html += '<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 32px;gap:6px;margin-bottom:6px;align-items:center;">' +
-      '<select class="form-select" style="font-size:.8rem;" onchange="poLineProduct(' + idx + ',this.value)">' + opts + '</select>' +
-      '<input type="number" class="form-input" style="font-size:.8rem;" value="' + line.qty + '" min="0.001" step="0.001" onchange="poLineQty(' + idx + ',this.value)">' +
-      '<input type="number" class="form-input" style="font-size:.8rem;" value="' + line.unitPrice + '" min="0" step="0.001" onchange="poLinePrice(' + idx + ',this.value)">' +
-      '<input type="number" class="form-input" style="font-size:.8rem;background:var(--bg2);" value="' + fmt(line.total) + '" readonly>' +
-      '<button onclick="removePOLine(' + idx + ')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:1.2rem;padding:0;">×</button>' +
+      prods.map(function(p) {
+        return '<option value="' + p.id + '"' + (String(p.id) === String(line.productId) ? ' selected' : '') + '>' + p.name + '</option>';
+      }).join('');
+    var totalVal = (parseFloat(line.qty)||0) * (parseFloat(line.unitPrice)||0);
+    line.total = totalVal;
+    html += '<div style="display:grid;grid-template-columns:2fr 80px 100px 90px 32px;gap:6px;margin-bottom:6px;align-items:center;">' +
+      '<select class="form-select" style="font-size:.82rem;padding:6px 8px;" onchange="poLineProduct(' + idx + ',this.value)">' + opts + '</select>' +
+      '<input type="number" class="form-input" style="font-size:.82rem;padding:6px;" value="' + (line.qty||1) + '" min="0.001" step="0.001" oninput="poLineQty(' + idx + ',this.value)">' +
+      '<input type="number" class="form-input" style="font-size:.82rem;padding:6px;" value="' + (line.unitPrice||0) + '" min="0" step="0.001" oninput="poLinePrice(' + idx + ',this.value)">' +
+      '<div style="font-size:.82rem;font-weight:700;padding:6px;background:var(--bg2);border-radius:6px;text-align:right;color:var(--text1);">QR ' + totalVal.toFixed(3) + '</div>' +
+      '<button onclick="removePOLine(' + idx + ')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:1.4rem;line-height:1;padding:0;">×</button>' +
       '</div>';
   });
   document.getElementById('po-lines').innerHTML = html;
@@ -2506,21 +2513,33 @@ function renderPOLines() {
 
 function poLineProduct(idx, val) {
   poLines[idx].productId = val;
-  var prod = pdGet("products").find(p => String(p.id) === String(val));
+  var prod = pdGet("products").find(function(p){ return String(p.id) === String(val); });
   poLines[idx].productName = prod ? prod.name : '';
   poLines[idx].unitPrice = prod ? parseFloat(prod.cost || prod.cost_price || 0) : 0;
-  poLines[idx].total = poLines[idx].qty * poLines[idx].unitPrice;
+  poLines[idx].total = (poLines[idx].qty || 1) * poLines[idx].unitPrice;
   renderPOLines();
 }
 function poLineQty(idx, val) {
   poLines[idx].qty = parseFloat(val) || 0;
-  poLines[idx].total = poLines[idx].qty * poLines[idx].unitPrice;
+  poLines[idx].total = (poLines[idx].qty) * (poLines[idx].unitPrice || 0);
   updatePOTotal();
+  // Update the total display for this row without full re-render
+  var rows = document.querySelectorAll('#po-lines > div');
+  if (rows[idx]) {
+    var totalDiv = rows[idx].querySelector('div');
+    if (totalDiv) totalDiv.textContent = 'QR ' + poLines[idx].total.toFixed(3);
+  }
 }
 function poLinePrice(idx, val) {
   poLines[idx].unitPrice = parseFloat(val) || 0;
-  poLines[idx].total = poLines[idx].qty * poLines[idx].unitPrice;
+  poLines[idx].total = (poLines[idx].qty || 1) * poLines[idx].unitPrice;
   updatePOTotal();
+  // Update the total display for this row without full re-render
+  var rows = document.querySelectorAll('#po-lines > div');
+  if (rows[idx]) {
+    var totalDiv = rows[idx].querySelector('div');
+    if (totalDiv) totalDiv.textContent = 'QR ' + poLines[idx].total.toFixed(3);
+  }
 }
 function updatePOTotal() {
   var total = poLines.reduce(function(a,l){ return a + (l.total||0); }, 0);
@@ -2571,15 +2590,18 @@ async function savePurchaseOrder() {
     var updated = 0, failed = [];
     for (var line of validLines) {
       try {
-        var res = await sb.from('products').select('id,stock,name').eq('id', line.productId).single();
-        if (res.data) {
-          var newStock = (parseFloat(res.data.stock)||0) + parseFloat(line.qty);
-          await sb.from('products').update({stock: newStock}).eq('id', line.productId);
-          updated++;
-          // Update local posData too
-          var p = pdGet("products").find(x => String(x.id) === String(line.productId));
-          if (p) { p.stock = newStock; p.stock_quantity = newStock; }
-        } else { failed.push(line.productName); }
+        var pid = parseInt(line.productId) || line.productId;
+        var res = await sb.from('products').select('id,stock,name').eq('id', pid).single();
+        if (!res.error && res.data) {
+          var newStock = (parseFloat(res.data.stock)||0) + parseFloat(line.qty||0);
+          var upd = await sb.from('products').update({stock: newStock}).eq('id', pid);
+          if (!upd.error) {
+            updated++;
+            // Update local posData cache
+            var p = posData.products.find(function(x){ return String(x.id) === String(pid); });
+            if (p) { p.stock = newStock; p.stock_quantity = newStock; }
+          } else { failed.push(line.productName + ': ' + upd.error.message); }
+        } else { failed.push(line.productName + ' (not found in Supabase)'); }
       } catch(e) { failed.push(line.productName + ': ' + e.message); }
     }
     var msg = '✅ Purchase saved! Stock updated for ' + updated + ' product(s).';
