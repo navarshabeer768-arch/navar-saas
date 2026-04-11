@@ -817,7 +817,7 @@ tr:hover td{background:#f8f9ff;}
     </div>
     <button class="btn btn-outline btn-sm" onclick="addPOLine()" style="margin-bottom:12px;">+ Add Product</button>
     <div style="display:flex;justify-content:flex-end;align-items:center;gap:16px;background:var(--bg2);padding:10px 14px;border-radius:8px;margin-bottom:12px;">
-      <span style="font-weight:700;font-size:1rem;color:var(--text1);">Total: QR <span id="po-grand-total">0.000</span></span>
+      <span style="font-weight:700;font-size:1rem;color:var(--text1);">Total: <span id="po-grand-total">QR 0.000</span></span>
     </div>
     <div class="form-group"><label class="form-label">Notes</label><input type="text" class="form-input" id="po-notes" placeholder="Optional notes"></div>
     <div style="background:#e8f5e9;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:var(--green);">
@@ -2696,7 +2696,8 @@ function loadPurchaseOrders() {
     if (o.status === 'paid') totalPaid += t;
     else if (o.status === 'pending') totalPending += t;
     else if (o.status === 'partial') totalPending += t - parseFloat(o.paid_amount||0);
-    totalBoxes += (o.lines||[]).reduce(function(a,l){ return a + parseFloat(l.qty||0); }, 0);
+    // Sum boxes from all lines
+    (o.lines||[]).forEach(function(l) { totalBoxes += parseFloat(l.qty||0); });
   });
   var purTotal = document.getElementById('pur-total');
   var purPending = document.getElementById('pur-pending');
@@ -2705,7 +2706,7 @@ function loadPurchaseOrders() {
   if (purTotal) purTotal.textContent = fmt(totalPurchased);
   if (purPending) purPending.textContent = fmt(totalPending);
   if (purPaid) purPaid.textContent = fmt(totalPaid);
-  if (purBoxes) purBoxes.textContent = totalBoxes.toFixed(0);
+  if (purBoxes) purBoxes.textContent = totalBoxes.toFixed(0) + ' boxes';
 
   // Filter by date if filters exist
   var fromEl = document.getElementById('po-from');
@@ -2725,7 +2726,7 @@ function loadPurchaseOrders() {
       '<td>' + (o.date||'') + '</td>' +
       '<td>' + (o.supplier||'—') + '</td>' +
       '<td style="font-size:.8rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + linesSummary + '">' + linesSummary + '</td>' +
-      '<td style="font-weight:700;">QR ' + fmt(o.total||0) + '</td>' +
+      '<td style="font-weight:700;">QR ' + (parseFloat(o.total||0)).toFixed(3) + '</td>' +
       '<td><span class="badge ' + statusClass + '">' + (o.status||'pending') + '</span></td>' +
       '<td><button onclick="deletePO(this.dataset.id)" data-id="' + o.id + '" class="btn btn-danger btn-sm" style="padding:4px 10px;">Del</button></td>' +
       '</tr>';
