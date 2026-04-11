@@ -2749,22 +2749,22 @@ async function loadInventory() {
     const whRem = totalUnits % cpb;
     const whDisplay = whBoxes + (whRem > 0 ? ' + ' + whRem + ' units' : '');
     const isLow = totalUnits <= (p.min_stock || p.low_stock_threshold || 10);
-    return \`<div class="inv-item">
-      <div class="inv-item-icon">\${p.icon||'📦'}</div>
-      <div class="inv-item-info">
-        <div class="inv-item-name">\${p.name}</div>
-        <div class="inv-item-sub">\${p.category||'—'} · \${cpb} cases/box</div>
-      </div>
-      <div class="inv-item-stock">
-        <div class="\${isLow ? 'color-red' : 'color-green'} fw-800">\${whBoxes} boxes</div>
-        <div style="font-size:.7rem;color:var(--text3);">🏭 Warehouse: \${whDisplay}</div>
-        <div style="font-size:.7rem;color:var(--text3);">🚛 Truck: 0 boxes</div>
-      </div>
-      <div class="inv-item-btns">
-        <button class="btn btn-primary btn-sm" onclick="loadToTruck(\${p.id})">🚛 Load</button>
-        <button class="btn btn-outline btn-sm" onclick="returnFromTruck(\${p.id})">↩ Return</button>
-      </div>
-    </div>\`;
+    return '<div class="inv-item">' +
+      '<div class="inv-item-icon">' + (p.icon||'📦') + '</div>' +
+      '<div class="inv-item-info">' +
+        '<div class="inv-item-name">' + p.name + '</div>' +
+        '<div class="inv-item-sub">' + (p.category||'—') + ' · ' + cpb + ' cases/box</div>' +
+      '</div>' +
+      '<div class="inv-item-stock">' +
+        '<div class="' + (isLow ? 'color-red' : 'color-green') + ' fw-800">' + whBoxes + ' boxes</div>' +
+        '<div style="font-size:.7rem;color:var(--text3);">🏭 Warehouse: ' + whDisplay + '</div>' +
+        '<div style="font-size:.7rem;color:var(--text3);">🚛 Truck: 0 boxes</div>' +
+      '</div>' +
+      '<div class="inv-item-btns">' +
+        '<button class="btn btn-primary btn-sm" onclick="loadToTruck(' + p.id + ')">🚛 Load</button>' +
+        '<button class="btn btn-outline btn-sm" onclick="returnFromTruck(' + p.id + ')">↩ Return</button>' +
+      '</div>' +
+    '</div>';
   }).join('');
 }
 
