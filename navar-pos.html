@@ -1044,6 +1044,20 @@ input[type=number]{-moz-appearance:textfield;}
         <label class="form-label">Email</label>
         <input type="text" class="form-input" id="set-email" value="fairway.fmcg@gmail.com">
       </div>
+            <div class="form-group">
+        <label class="form-label">Company Name (Arabic) / اسم الشركة</label>
+        <input type="text" class="form-input" id="set-company-ar" placeholder="مثال: نيو فيرواي ترادينغ" dir="rtl">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Company Logo</label>
+        <div id="set-logo-upload-area" style="border:2px dashed var(--border);border-radius:10px;padding:16px;text-align:center;cursor:pointer;" onclick="document.getElementById('set-logo-input').click()">
+          <div style="font-size:2rem;">🖼️</div>
+          <div style="font-size:.82rem;color:var(--text2);margin-top:4px;">Tap to upload logo (PNG/JPG)</div>
+        </div>
+        <img id="set-logo-preview" src="" style="display:none;max-height:80px;border-radius:8px;margin-top:8px;border:1px solid var(--border);" alt="Logo">
+        <input type="file" id="set-logo-input" accept="image/*" style="display:none;" onchange="handleLogoUpload(event)">
+        <button type="button" class="btn btn-outline btn-sm" style="margin-top:6px;display:none;" id="set-logo-remove" onclick="removeLogoPreview()">✕ Remove Logo</button>
+      </div>
       <button class="btn btn-primary btn-block" onclick="saveSettings()">💾 Save Settings</button>
     </div>
     <div class="card">
@@ -2191,16 +2205,39 @@ async function loadSettings() {
   const keys = ['company','address','phone1','phone2','email'];
   for (const k of keys) {
     const row = await dbGet('settings', k);
-    if (row) document.getElementById('set-' + k).value = row.value;
+    if (row) { const el = document.getElementById('set-' + k); if (el) el.value = row.value; }
+  }
+  // Load Arabic name
+  const arRow = await dbGet('settings', 'company_ar');
+  if (arRow) { const arEl = document.getElementById('set-company-ar'); if (arEl) arEl.value = arRow.value; }
+  // Load logo
+  const logoRow = await dbGet('settings', 'logo');
+  if (logoRow && logoRow.value) {
+    window._LOGO = logoRow.value;
+    const prev = document.getElementById('set-logo-preview');
+    if (prev) { prev.src = logoRow.value; prev.style.display = 'block'; }
+    const uploadArea = document.getElementById('set-logo-upload-area');
+    if (uploadArea) uploadArea.style.display = 'none';
   }
 }
 async function saveSettings() {
   const keys = ['company','address','phone1','phone2','email'];
   for (const k of keys) {
-    await dbPut('settings', { key: k, value: document.getElementById('set-' + k).value });
+    const el = document.getElementById('set-' + k);
+    if (el) await dbPut('settings', { key: k, value: el.value });
+  }
+  // Save Arabic name
+  const arEl = document.getElementById('set-company-ar');
+  if (arEl) await dbPut('settings', { key: 'company_ar', value: arEl.value });
+  // Save logo
+  const logoData = window._LOGO_PENDING || window._LOGO || '';
+  if (logoData) {
+    await dbPut('settings', { key: 'logo', value: logoData });
+    window._LOGO = logoData;
+    delete window._LOGO_PENDING;
   }
   await loadSettingsObj();
-  showToast('✅ Settings saved!');
+  showToast('\u2705 Settings saved!');
 }
 async function changePin() {
   const newPin = document.getElementById('set-new-pin').value.trim();
@@ -2211,12 +2248,26 @@ async function changePin() {
   showToast('✅ PIN changed successfully!');
 }
 async function loadSettingsObj() {
-  // Settings stored in localStorage only - no Supabase table for settings
+  // Load from Supabase settings table (company, address, phone1, phone2, email)
+  const keys = ['company','address','phone1','phone2','email','company_ar','logo'];
+  const obj = {};
+  for (const k of keys) {
+    try {
+      const row = await dbGet('settings', k);
+      if (row && row.value !== undefined) obj[k] = row.value;
+    } catch(e) {}
+  }
+  // fallback to localStorage
   try {
     const stored = localStorage.getItem('navar_settings_' + STORE_ID);
-    if (stored) return JSON.parse(stored);
+    const ls = stored ? JSON.parse(stored) : {};
+    Object.keys(ls).forEach(k => { if (!obj[k]) obj[k] = ls[k]; });
   } catch(e) {}
-  return {};
+  // Populate global settings
+  settings = obj;
+  // Cache logo
+  if (obj.logo) window._LOGO = obj.logo;
+  return obj;
 }
 
 
@@ -2704,7 +2755,7 @@ async function completeOrder() {
     const customer = custId ? await dbGet('customers', custId) : null;
     const products = await dbGetAll('products');
     const prodMap = {};
-    products.forEach(p => { prodMap[p.product_id]=p; prodMap[String(p.product_id)]=p; });
+    products.forEach(p => { var pid=p.id||p.product_id; prodMap[pid]=p; prodMap[String(pid)]=p; });
     if (printType === 'a4') printA4Invoice(invoiceForPrint, itemsForPrint, customer, prodMap);
     else if (printType === 'thermal') printThermalReceipt(invoiceForPrint, itemsForPrint, customer, prodMap);
     else {
@@ -2988,7 +3039,7 @@ async function saveCustomer() {
     } else {
       // Update local cache
       if (!localCache['customers']) localCache['customers'] = [];
-      const idx = localCache['customers'].findIndex(r => (r.id||r.customer_id) == baseData.customer_id);
+      const idx = localCache['customers'].findIndex(r => r.customer_id == baseData.customer_id);
       if (idx >= 0) localCache['customers'][idx] = withLimit;
       else localCache['customers'].push(withLimit);
     }
@@ -4441,7 +4492,7 @@ async function loadTruckStock(owner) {
   try {
     var res = await Promise.race([
       sb.from('settings').select('value').eq('store_id', STORE_ID).eq('key', key).single(),
-      new Promise(function(_,rej){ setTimeout(function(){ rej(new Error('timeout')); }, 3000); })
+      new Promise(function(_,rej){ setTimeout(function(){ rej(new Error('t')); }, 3000); })
     ]);
     if (res.data && res.data.value) {
       var parsed = JSON.parse(res.data.value);
@@ -4836,299 +4887,414 @@ function saveTargetCurrent() {
 }
 
 
-// ════════════════════════════════════════════════════════
-// MISSING FUNCTIONS — implementations
-// ════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// PRINT FUNCTIONS — A4 Invoice + Thermal Receipt
+// Reads from global `settings` object (company, address, phones, logo)
+// ═══════════════════════════════════════════════════════════════
 
-// ── Auth ──────────────────────────────────────────────
+function _getSettingsHeader() {
+  var s = settings || {};
+  return {
+    company:    s.company    || localStorage.getItem('pos_setting_' + STORE_ID + '_company')    || 'NEW FAIR WAY TRADING',
+    companyAr:  s.company_ar || localStorage.getItem('pos_setting_' + STORE_ID + '_company_ar') || '\u0646\u064a\u0648 \u0641\u064a\u0631\u0648\u0627\u064a \u062a\u0631\u064a\u062f\u064a\u0646\u063a',
+    address:    s.address    || localStorage.getItem('pos_setting_' + STORE_ID + '_address')    || 'Doha, Qatar',
+    phone1:     s.phone1     || localStorage.getItem('pos_setting_' + STORE_ID + '_phone1')     || '',
+    phone2:     s.phone2     || localStorage.getItem('pos_setting_' + STORE_ID + '_phone2')     || '',
+    logo:       window._LOGO || s.logo || ''
+  };
+}
+
+function printA4Invoice(inv, items, customer, prodMap) {
+  var s = _getSettingsHeader();
+  var invoiceId = inv.invoice_id || inv.id || '----';
+  var dateStr = fmtDate(inv.date || inv.created_at);
+  var timeStr = inv.time || '';
+  var payLabel = { cash: 'CASH \u0646\u0642\u062f\u0627\u064b', credit: 'CREDIT \u0622\u062c\u0644', partial: 'PARTIAL \u062c\u0632\u0626\u064a', cheque: 'CHEQUE \u0634\u064a\u0643' };
+  var logoHtml = s.logo
+    ? '<img src="' + s.logo + '" onerror="this.style.display=\'none\'" width="70" height="70" style="border-radius:50%;display:block;object-fit:cover;" alt="Logo">'
+    : '<div style="width:70px;height:70px;border:2px solid #1a237e;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.6rem;font-weight:900;color:#1a237e;">' + (s.company||'N')[0] + '</div>';
+
+  // Build item rows
+  var subtotalCalc = 0;
+  var itemRowsHtml = (items||[]).map(function(it) {
+    var p = prodMap ? (prodMap[it.product_id] || prodMap[String(it.product_id)]) : null;
+    var name = it.name || (p && p.name) || '-';
+    var cpb = (p && getCasesPerBox(p)) || it.bags_per_box || 4;
+    var qty = it.quantity || 0;
+    var boxes = Math.floor(qty / cpb);
+    var rem = qty % cpb;
+    var qtyStr = boxes > 0 ? boxes + ' box' + (boxes!==1?'es':'') + (rem>0?' + '+rem+' bag'+(rem!==1?'s':''):'') : qty + ' bags';
+    var price = parseFloat(it.price || 0);
+    var total = parseFloat(it.total || (qty * price) || 0);
+    var isFOC = it.is_foc == 1 || it.is_foc === true;
+    if (!isFOC) subtotalCalc += total;
+    return '<tr style="border-bottom:1px solid #eee;">'
+      + '<td style="padding:7px 8px;font-size:12px;font-weight:600;">' + name + (isFOC ? ' <span style="background:#e8f5e9;color:#2e7d32;padding:1px 5px;border-radius:3px;font-size:9px;">FOC</span>' : '') + '</td>'
+      + '<td style="padding:7px 8px;font-size:12px;text-align:center;">' + qtyStr + '</td>'
+      + '<td style="padding:7px 8px;font-size:12px;text-align:right;">' + (isFOC ? 'FREE' : 'QR ' + price.toFixed(3)) + '</td>'
+      + '<td style="padding:7px 8px;font-size:12px;text-align:right;font-weight:700;">' + (isFOC ? 'FREE' : 'QR ' + total.toFixed(3)) + '</td>'
+      + '</tr>';
+  }).join('');
+
+  var discount = parseFloat(inv.discount || 0);
+  var totalAmt = parseFloat(inv.total_amount || inv.total || subtotalCalc - discount || 0);
+  var cashPaid = parseFloat(inv.cash_paid || (inv.payment_type === 'credit' ? 0 : totalAmt) || 0);
+  var change = Math.max(0, cashPaid - totalAmt);
+
+  var html = '<div class="a4-invoice-wrap"><div class="a4-invoice">'
+    // HEADER
+    + '<div class="a4-header">'
+      + '<div class="a4-header-left">'
+        + '<div style="font-size:18px;font-weight:900;color:#1a237e;">' + s.company + '</div>'
+        + '<div style="font-size:10px;margin-top:3px;">&#128205; ' + s.address + '</div>'
+        + (s.phone1 ? '<div style="font-size:10px;">&#128222; ' + s.phone1 + (s.phone2 ? ' | ' + s.phone2 : '') + '</div>' : '')
+      + '</div>'
+      + '<div class="a4-logo-wrap">' + logoHtml + '</div>'
+      + '<div class="a4-header-right" style="direction:rtl;text-align:right;">'
+        + '<div style="font-size:16px;font-weight:900;color:#1a237e;font-family:Cairo,sans-serif;">' + s.companyAr + '</div>'
+        + '<div style="font-size:10px;font-family:Cairo,sans-serif;">&#128205; \u0627\u0644\u062f\u0648\u062d\u0629\u060c \u0642\u0637\u0631</div>'
+      + '</div>'
+    + '</div>'
+    // INVOICE TITLE
+    + '<div class="a4-inv-title">'
+      + '<div style="font-size:14px;font-weight:800;">SALES INVOICE / \u0641\u0627\u062a\u0648\u0631\u0629 \u0628\u064a\u0639</div>'
+    + '</div>'
+    // META
+    + '<div class="a4-meta">'
+      + '<div><strong>Invoice # / \u0631\u0642\u0645 \u0627\u0644\u0641\u0627\u062a\u0648\u0631\u0629:</strong> ' + String(invoiceId).padStart(4,'0') + '</div>'
+      + '<div><strong>Date / \u0627\u0644\u062a\u0627\u0631\u064a\u062e:</strong> ' + dateStr + (timeStr ? ' ' + timeStr : '') + '</div>'
+      + '<div><strong>Payment / \u0627\u0644\u062f\u0641\u0639:</strong> <span style="font-weight:700;">' + (payLabel[inv.payment_type] || (inv.payment_type||'').toUpperCase()) + '</span></div>'
+      + (inv.salesman_name ? '<div><strong>Salesman / \u0645\u0646\u062f\u0648\u0628:</strong> ' + inv.salesman_name + '</div>' : '')
+      + (inv.cheque_number ? '<div><strong>Cheque # / \u0631\u0642\u0645 \u0627\u0644\u0634\u064a\u0643:</strong> ' + inv.cheque_number + '</div>' : '')
+    + '</div>'
+    // CUSTOMER
+    + '<div class="a4-customer">'
+      + '<div><strong>Customer / \u0627\u0644\u0639\u0645\u064a\u0644:</strong> ' + (customer ? customer.name : (inv.customer_name || '\u0632\u0628\u0648\u0646 \u0639\u0627\u0628\u0631 / Walk-in')) + '</div>'
+      + (customer && customer.phone ? '<div><strong>Phone / \u0647\u0627\u062a\u0641:</strong> ' + customer.phone + '</div>' : '')
+    + '</div>'
+    // ITEMS TABLE
+    + '<div style="padding:0 16px 8px;">'
+      + '<table style="width:100%;border-collapse:collapse;border:1px solid #ddd;">'
+        + '<thead style="background:#1a237e;color:#fff;">'
+          + '<tr>'
+            + '<th style="padding:8px;font-size:11px;text-align:left;">Product / \u0627\u0644\u0645\u0646\u062a\u062c</th>'
+            + '<th style="padding:8px;font-size:11px;text-align:center;">Qty / \u0643\u0645\u064a\u0629</th>'
+            + '<th style="padding:8px;font-size:11px;text-align:right;">Price / \u0633\u0639\u0631</th>'
+            + '<th style="padding:8px;font-size:11px;text-align:right;">Total / \u0627\u0644\u0645\u062c\u0645\u0648\u0639</th>'
+          + '</tr>'
+        + '</thead>'
+        + '<tbody>' + itemRowsHtml + '</tbody>'
+      + '</table>'
+    + '</div>'
+    // TOTALS
+    + '<div style="margin:0 16px 8px;border:1px solid #ddd;border-radius:6px;overflow:hidden;">'
+      + (discount > 0 ? '<div style="display:flex;justify-content:space-between;padding:7px 12px;font-size:12px;border-bottom:1px solid #eee;"><span>Subtotal / \u0627\u0644\u0645\u062c\u0645\u0648\u0639</span><span>QR ' + subtotalCalc.toFixed(3) + '</span></div>' : '')
+      + (discount > 0 ? '<div style="display:flex;justify-content:space-between;padding:7px 12px;font-size:12px;color:#c62828;border-bottom:1px solid #eee;"><span>Discount / \u062e\u0635\u0645</span><span>- QR ' + discount.toFixed(3) + '</span></div>' : '')
+      + '<div style="display:flex;justify-content:space-between;padding:10px 12px;font-size:15px;font-weight:900;background:#f5f5ff;"><span>TOTAL / \u0627\u0644\u0645\u062c\u0645\u0648\u0639</span><span style="color:#1a237e;">QR ' + totalAmt.toFixed(3) + '</span></div>'
+      + (inv.payment_type === 'cash' && cashPaid > 0 ? '<div style="display:flex;justify-content:space-between;padding:7px 12px;font-size:12px;border-top:1px solid #eee;"><span>Cash Paid / \u0645\u062f\u0641\u0648\u0639 \u0646\u0642\u062f\u0627\u064b</span><span>QR ' + cashPaid.toFixed(3) + '</span></div>' : '')
+      + (change > 0.001 ? '<div style="display:flex;justify-content:space-between;padding:7px 12px;font-size:12px;border-top:1px solid #eee;color:#2e7d32;"><span>Change / \u0627\u0644\u0628\u0627\u0642\u064a</span><span>QR ' + change.toFixed(3) + '</span></div>' : '')
+      + (inv.payment_type === 'credit' ? '<div style="padding:7px 12px;font-size:11px;color:#c62828;border-top:1px solid #eee;">&#9888; Credit Sale — amount due on collection</div>' : '')
+    + '</div>'
+    // FOOTER
+    + '<div class="a4-footer">'
+      + '<div><strong>Customer Signature / \u062a\u0648\u0642\u064a\u0639 \u0627\u0644\u0639\u0645\u064a\u0644</strong><br><br>_______________________</div>'
+      + '<div style="text-align:right;"><strong>Cashier / \u0623\u0645\u064a\u0646 \u0627\u0644\u0635\u0646\u062f\u0648\u0642</strong><br><br>_______________________</div>'
+    + '</div>'
+  + '</div></div>';
+
+  window._invHTML = html;
+  showInvoiceViewer(html, 'a4');
+}
+
+function printThermalReceipt(inv, items, customer, prodMap) {
+  var s = _getSettingsHeader();
+  var invoiceId = inv.invoice_id || inv.id || '----';
+  var dateStr = fmtDate(inv.date || inv.created_at);
+  var timeStr = inv.time || '';
+  var logoHtml = s.logo
+    ? '<img src="' + s.logo + '" onerror="this.style.display=\'none\'" width="60" height="60" style="border-radius:50%;display:block;margin:0 auto 6px;object-fit:cover;" alt="Logo">'
+    : '';
+
+  var subtotalCalc = 0;
+  var itemRowsHtml = (items||[]).map(function(it) {
+    var p = prodMap ? (prodMap[it.product_id] || prodMap[String(it.product_id)]) : null;
+    var name = it.name || (p && p.name) || '-';
+    var cpb = (p && getCasesPerBox(p)) || it.bags_per_box || 4;
+    var qty = it.quantity || 0;
+    var boxes = Math.floor(qty / cpb);
+    var rem = qty % cpb;
+    var qtyStr = boxes > 0 ? boxes + 'bx' + (rem>0?'+'+rem+'bg':'') : qty + 'bg';
+    var total = parseFloat(it.total || 0);
+    var isFOC = it.is_foc == 1 || it.is_foc === true;
+    if (!isFOC) subtotalCalc += total;
+    return '<div class="thermal-row" style="margin:4px 0;font-size:11px;">'
+      + '<span>' + name + (isFOC?' (FOC)':'') + ' x' + qtyStr + '</span>'
+      + '<span>' + (isFOC ? 'FREE' : 'QR ' + total.toFixed(2)) + '</span>'
+      + '</div>';
+  }).join('');
+
+  var discount = parseFloat(inv.discount || 0);
+  var totalAmt = parseFloat(inv.total_amount || inv.total || subtotalCalc - discount || 0);
+  var cashPaid = parseFloat(inv.cash_paid || (inv.payment_type === 'credit' ? 0 : totalAmt) || 0);
+  var change = Math.max(0, cashPaid - totalAmt);
+
+  var html = '<div class="thermal-receipt" style="padding:10px 8px;width:302px;max-width:302px;box-sizing:border-box;font-family:Courier New,monospace;">'
+    + logoHtml
+    + '<div class="thermal-logo" style="text-align:center;font-size:13px;font-weight:900;margin-bottom:2px;">' + s.company + '</div>'
+    + (s.companyAr ? '<div style="text-align:center;font-size:11px;font-family:Cairo,sans-serif;direction:rtl;">' + s.companyAr + '</div>' : '')
+    + '<div class="thermal-center" style="text-align:center;font-size:9px;color:#555;margin-bottom:6px;">' + s.address + (s.phone1 ? ' | ' + s.phone1 : '') + '</div>'
+    + '<hr style="border-top:2px dashed #000;margin:8px 0;">'
+    + '<div style="text-align:center;font-size:13px;font-weight:900;letter-spacing:1px;">INVOICE / \u0641\u0627\u062a\u0648\u0631\u0629</div>'
+    + '<hr style="border-top:1px dashed #000;margin:6px 0;">'
+    + '<div class="thermal-row" style="display:flex;justify-content:space-between;font-size:10px;margin:3px 0;"><span>Inv #:</span><span>' + String(invoiceId).padStart(4,'0') + '</span></div>'
+    + '<div class="thermal-row" style="display:flex;justify-content:space-between;font-size:10px;margin:3px 0;"><span>Date:</span><span>' + dateStr + ' ' + timeStr + '</span></div>'
+    + (customer ? '<div class="thermal-row" style="display:flex;justify-content:space-between;font-size:10px;margin:3px 0;"><span>Customer:</span><span>' + customer.name + '</span></div>' : '')
+    + (inv.salesman_name ? '<div class="thermal-row" style="display:flex;justify-content:space-between;font-size:10px;margin:3px 0;"><span>Salesman:</span><span>' + inv.salesman_name + '</span></div>' : '')
+    + '<hr style="border-top:1px dashed #000;margin:6px 0;">'
+    + itemRowsHtml
+    + '<hr style="border-top:2px solid #000;margin:8px 0;">'
+    + (discount > 0 ? '<div style="display:flex;justify-content:space-between;font-size:11px;margin:3px 0;"><span>Subtotal:</span><span>QR ' + subtotalCalc.toFixed(2) + '</span></div>' : '')
+    + (discount > 0 ? '<div style="display:flex;justify-content:space-between;font-size:11px;margin:3px 0;color:#c62828;"><span>Discount:</span><span>-QR ' + discount.toFixed(2) + '</span></div>' : '')
+    + '<div class="thermal-total" style="display:flex;justify-content:space-between;font-size:14px;font-weight:900;padding:5px 0;border-top:2px solid #000;border-bottom:2px solid #000;margin:6px 0;"><span>TOTAL:</span><span>QR ' + totalAmt.toFixed(2) + '</span></div>'
+    + (inv.payment_type === 'cash' && cashPaid > 0 ? '<div style="display:flex;justify-content:space-between;font-size:11px;margin:3px 0;"><span>Cash Paid:</span><span>QR ' + cashPaid.toFixed(2) + '</span></div>' : '')
+    + (change > 0.001 ? '<div style="display:flex;justify-content:space-between;font-size:11px;margin:3px 0;color:#2e7d32;"><span>Change:</span><span>QR ' + change.toFixed(2) + '</span></div>' : '')
+    + (inv.payment_type === 'credit' ? '<div style="text-align:center;font-size:10px;color:#c62828;margin-top:6px;">\u26a0\ufe0f Credit — collect later</div>' : '')
+    + '<hr style="border-top:1px dashed #000;margin:10px 0;">'
+    + '<div style="text-align:center;font-size:10px;margin-bottom:4px;">Thank You! \u0634\u0643\u0631\u0627\u064b \u0644\u0643\u0645</div>'
+    + '<div style="text-align:center;font-size:9px;color:#777;">Powered by Navar POS</div>'
+    + '<div style="height:30px;"></div>'
+    + '</div>';
+
+  window._invHTML = html;
+  showInvoiceViewer(html, 'thermal');
+}
+
+// ── Logo upload handler ────────────────────────────────────────
+function handleLogoUpload(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+  if (file.size > 500000) { showToast('\u26a0\ufe0f Logo must be under 500KB'); return; }
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var dataUrl = e.target.result;
+    window._LOGO_PENDING = dataUrl;
+    window._LOGO = dataUrl;
+    var prev = document.getElementById('set-logo-preview');
+    if (prev) { prev.src = dataUrl; prev.style.display = 'block'; }
+    var area = document.getElementById('set-logo-upload-area');
+    if (area) area.style.display = 'none';
+    var removeBtn = document.getElementById('set-logo-remove');
+    if (removeBtn) removeBtn.style.display = '';
+    showToast('\u2705 Logo ready — press Save Settings to apply');
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeLogoPreview() {
+  window._LOGO = '';
+  window._LOGO_PENDING = '';
+  var prev = document.getElementById('set-logo-preview');
+  if (prev) { prev.src = ''; prev.style.display = 'none'; }
+  var area = document.getElementById('set-logo-upload-area');
+  if (area) area.style.display = '';
+  var removeBtn = document.getElementById('set-logo-remove');
+  if (removeBtn) removeBtn.style.display = 'none';
+  // Save removal
+  dbPut('settings', { key: 'logo', value: '' });
+  showToast('\u2705 Logo removed');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MISSING ONCLICK FUNCTIONS
+// ═══════════════════════════════════════════════════════════════
+
 function logoutUser() {
   localStorage.removeItem('pos_auth_' + STORE_ID);
   localStorage.removeItem('employee_name');
-  localStorage.removeItem('employee_pin');
   STORE_ID = null;
   showScreen('login-screen');
-  showToast('\uD83D\uDC4B Logged out');
+  showToast('\ud83d\udc4b Logged out');
 }
 
-// ── Reset Data ────────────────────────────────────────
 function resetStep2() {
   var v = (document.getElementById('reset-input-1') || {}).value || '';
-  if (v.trim().toUpperCase() !== 'DELETE') { showToast('\u26A0\uFE0F Type DELETE to continue'); return; }
+  if (v.trim().toUpperCase() !== 'DELETE') { showToast('\u26a0\ufe0f Type DELETE to continue'); return; }
   document.getElementById('reset-step-1').style.display = 'none';
   document.getElementById('reset-step-2').style.display = '';
 }
 
 async function doResetData() {
   var v = (document.getElementById('reset-input-2') || {}).value || '';
-  if (v.trim().toUpperCase() !== 'CONFIRM') { showToast('\u26A0\uFE0F Type CONFIRM to delete'); return; }
+  if (v.trim().toUpperCase() !== 'CONFIRM') { showToast('\u26a0\ufe0f Type CONFIRM to delete'); return; }
   try {
     await sb.from('invoices').delete().eq('store_id', STORE_ID);
     await sb.from('customers').delete().eq('store_id', STORE_ID);
     await sb.from('products').delete().eq('store_id', STORE_ID);
     await sb.from('expenses').delete().eq('store_id', STORE_ID);
-    localCache = {};
+    Object.keys(localCache).forEach(function(k) { delete localCache[k]; });
     document.getElementById('reset-modal').style.display = 'none';
     showToast('\u2705 All data deleted!');
     showScreen('home-screen');
-  } catch(e) { showToast('\u274C Reset failed: ' + e.message); }
+  } catch(e) { showToast('\u274c Reset failed: ' + e.message); }
 }
 
-// ── Export ────────────────────────────────────────────
 async function exportData() {
   try {
-    var backup = {
-      invoices: await dbGetAll('invoices'),
-      products: await dbGetAll('products'),
-      customers: await dbGetAll('customers'),
-      expenses: await dbGetAll('expenses'),
-      exported_at: new Date().toISOString()
-    };
+    var backup = { invoices: await dbGetAll('invoices'), products: await dbGetAll('products'), customers: await dbGetAll('customers'), expenses: await dbGetAll('expenses'), exported_at: new Date().toISOString() };
     var blob = new Blob([JSON.stringify(backup, null, 2)], {type:'application/json'});
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'navar_backup_' + today() + '.json';
-    a.click();
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'navar_backup_' + today() + '.json'; a.click();
     showToast('\u2705 Backup downloaded!');
-  } catch(e) { showToast('\u274C Export failed: ' + e.message); }
+  } catch(e) { showToast('\u274c Export failed: ' + e.message); }
 }
 
 async function exportCSV() {
   try {
     var invs = await dbGetAll('invoices');
-    if (!invs.length) { showToast('\u26A0\uFE0F No invoices to export'); return; }
-    var rows = invs.map(function(i) {
-      return [i.id||'', i.date||'', (i.customer_name||'Walk-in').replace(/,/g,' '),
-              parseFloat(i.total||i.total_amount||0).toFixed(3),
-              i.payment_type||'', i.status||''].join(',');
-    });
-    var csv = ['ID,Date,Customer,Total,Payment,Status'].concat(rows).join('\n');
-    var blob = new Blob([csv], {type:'text/csv'});
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'invoices_' + today() + '.csv';
-    a.click();
+    if (!invs.length) { showToast('\u26a0\ufe0f No invoices'); return; }
+    var rows = invs.map(function(i) { return [i.id||i.invoice_id||'', i.date||'', (i.customer_name||'Walk-in').replace(/,/g,' '), parseFloat(i.total||i.total_amount||0).toFixed(3), i.payment_type||'', i.status||''].join(','); });
+    var blob = new Blob([['ID,Date,Customer,Total,Payment,Status'].concat(rows).join('\n')], {type:'text/csv'});
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'invoices_' + today() + '.csv'; a.click();
     showToast('\u2705 CSV downloaded!');
-  } catch(e) { showToast('\u274C CSV failed: ' + e.message); }
+  } catch(e) { showToast('\u274c CSV failed: ' + e.message); }
 }
 
-// ── Invoice / Orders filtering ────────────────────────
 async function filterOrders(status) {
-  ['pending','ready','done'].forEach(function(s) {
-    var btn = document.getElementById('ord-tab-' + s);
-    if (btn) btn.classList.toggle('active', s === status);
-  });
+  ['pending','ready','done'].forEach(function(s) { var btn=document.getElementById('ord-tab-'+s); if(btn) btn.classList.toggle('active', s===status); });
   var list = document.getElementById('orders-list') || document.getElementById('ord-list');
   if (!list) return;
   var orders = JSON.parse(localStorage.getItem('advance_orders_' + STORE_ID) || '[]');
-  var filtered = orders.filter(function(o) {
-    if (status === 'pending') return o.status === 'pending';
-    if (status === 'ready')   return o.status === 'ready';
-    return o.status === 'done' || o.status === 'delivered';
-  });
-  if (!filtered.length) {
-    list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">\uD83D\uDCCB</div><div class="empty-state-text">No ' + status + ' orders</div></div>';
-    return;
-  }
-  list.innerHTML = filtered.map(function(o) {
-    return '<div class="card" style="padding:12px;margin-bottom:8px;">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;">' +
-        '<div><div style="font-weight:700;">' + (o.customer_name||'Customer') + '</div>' +
-        '<div style="font-size:.8rem;color:var(--text2);">' + (o.date||'') + ' \u00B7 QR ' + parseFloat(o.total||0).toFixed(2) + '</div></div>' +
-        '<span class="badge badge-' + (o.status==='pending'?'gold':o.status==='ready'?'green':'navy') + '">' + o.status + '</span>' +
-      '</div></div>';
-  }).join('');
+  var filtered = orders.filter(function(o) { return status==='pending'?o.status==='pending':status==='ready'?o.status==='ready':(o.status==='done'||o.status==='delivered'); });
+  list.innerHTML = filtered.length ? filtered.map(function(o) {
+    return '<div class="card" style="padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">'
+      + '<div><div style="font-weight:700;">' + (o.customer_name||'Customer') + '</div>'
+      + '<div style="font-size:.8rem;color:var(--text2);">' + (o.date||'') + ' \u00b7 QR ' + parseFloat(o.total||0).toFixed(2) + '</div></div>'
+      + '<span class="badge badge-' + (o.status==='pending'?'gold':o.status==='ready'?'green':'navy') + '">' + o.status + '</span></div>';
+  }).join('') : '<div class="empty-state"><div class="empty-state-icon">\ud83d\udccb</div><div class="empty-state-text">No ' + status + ' orders</div></div>';
 }
 
 function openOrderModal() {
-  var list = document.getElementById('orders-list') || document.getElementById('ord-list');
-  if (!list) return;
-  // Remove existing form if open
-  var existing = document.getElementById('new-order-form');
-  if (existing) { existing.remove(); return; }
-  // Build form with DOM (avoids quote-nesting issues)
-  var wrap = document.createElement('div');
-  wrap.className = 'card';
-  wrap.id = 'new-order-form';
-  wrap.style.cssText = 'padding:16px;margin-bottom:12px;border:2px solid var(--navy);';
-  wrap.innerHTML = '<div style="font-weight:700;margin-bottom:8px;">➕ New Pre-Order</div>' +
-    '<input id="new-ord-name" class="form-input" placeholder="Customer name" style="margin-bottom:8px;">' +
-    '<input id="new-ord-notes" class="form-input" placeholder="Notes / items" style="margin-bottom:8px;">' +
-    '<div style="display:flex;gap:8px;">' +
-      '<button class="btn btn-outline btn-block" id="new-ord-cancel">Cancel</button>' +
-      '<button class="btn btn-primary btn-block" onclick="saveOrder()">Save</button>' +
-    '</div>';
-  list.insertBefore(wrap, list.firstChild);
-  document.getElementById('new-ord-cancel').onclick = function() { wrap.remove(); };
+  var modal = document.getElementById('order-modal');
+  if (modal) {
+    // Populate customer dropdown
+    dbGetAll('customers').then(function(custs) {
+      var sel = document.getElementById('ord-customer');
+      if (sel) { sel.innerHTML = '<option value="">-- Select Customer --</option>' + custs.map(function(c){ return '<option value="' + (c.id||c.customer_id) + '">' + c.name + '</option>'; }).join(''); }
+    });
+    document.getElementById('ord-date').value = today();
+    openModal('order-modal');
+  }
 }
 
 function saveOrder() {
-  var name = (document.getElementById('new-ord-name') || {}).value || '';
-  if (!name.trim()) { showToast('\u26A0\uFE0F Enter customer name'); return; }
-  var notes = (document.getElementById('new-ord-notes') || {}).value || '';
+  var custSel = document.getElementById('ord-customer');
+  var name = custSel ? (custSel.options[custSel.selectedIndex] && custSel.selectedIndex > 0 ? custSel.options[custSel.selectedIndex].text : '') : '';
+  var items = (document.getElementById('ord-items') || {}).value || '';
+  var notes = (document.getElementById('ord-notes') || {}).value || '';
+  var date  = (document.getElementById('ord-date') || {}).value || today();
+  if (!name) { showToast('\u26a0\ufe0f Select customer'); return; }
   var orders = JSON.parse(localStorage.getItem('advance_orders_' + STORE_ID) || '[]');
-  orders.unshift({ id: Date.now(), customer_name: name.trim(), notes: notes, status: 'pending', date: today(), total: 0 });
+  orders.unshift({ id: Date.now(), customer_name: name, notes: notes, items: items, status: 'pending', date: date, total: 0 });
   localStorage.setItem('advance_orders_' + STORE_ID, JSON.stringify(orders));
-  var form = document.getElementById('new-order-form');
-  if (form) form.remove();
+  closeModal('order-modal');
   showToast('\u2705 Order saved!');
   filterOrders('pending');
 }
 
 function confirmReturn() {
-  var modal = document.getElementById('return-modal');
-  if (modal) modal.style.display = 'none';
-  showToast('\u2705 Return confirmed');
+  closeModal('truck-return-modal');
+  closeModal('return-modal');
 }
 
 function confirmReject() {
-  ['reject-modal','approval-modal'].forEach(function(id) {
-    var m = document.getElementById(id); if (m) m.style.display = 'none';
-  });
+  closeModal('reject-modal');
+  closeModal('approval-modal');
   showToast('\u2705 Rejected');
 }
 
-// ── Credit Payment helpers ────────────────────────────
 function setCPType(type) {
-  ['cash','cheque','partial'].forEach(function(t) {
-    var btn = document.getElementById('cp-tab-' + t);
-    if (btn) btn.classList.toggle('active', t === type);
-  });
-  var cheq = document.getElementById('cp-cheque-fields');
-  var part = document.getElementById('cp-partial-fields');
-  if (cheq) cheq.style.display = type === 'cheque' ? '' : 'none';
-  if (part) part.style.display = type === 'partial' ? '' : 'none';
+  ['cash','cheque','partial'].forEach(function(t) { var btn=document.getElementById('cp-tab-'+t); if(btn) btn.classList.toggle('active', t===type); });
+  var cheq = document.getElementById('cp-cheque-fields'); if(cheq) cheq.style.display = type==='cheque'?'':'none';
+  var part = document.getElementById('cp-partial-fields'); if(part) part.style.display = type==='partial'?'':'none';
   window._cpType = type;
 }
 
 function setCPPrint(type) {
-  ['a4','thermal','none'].forEach(function(t) {
-    var btn = document.getElementById('cp-print-' + t);
-    if (btn) btn.classList.toggle('active', t === type);
-  });
+  ['a4','thermal','none'].forEach(function(t) { var btn=document.getElementById('cp-print-'+t); if(btn) btn.classList.toggle('active', t===type); });
   window._cpPrint = type;
 }
 
-// ── Truck screen tab ──────────────────────────────────
 function tlSwitchTab(tab) {
-  ['load','report'].forEach(function(t) {
-    var btn = document.getElementById('tl-tab-' + t);
-    if (btn) { btn.classList.toggle('btn-primary', t === tab); btn.classList.toggle('btn-outline', t !== tab); }
-  });
-  var loadSec = document.getElementById('tl-load-section') || document.getElementById('truckload-list');
-  var repSec  = document.getElementById('tl-report-section');
-  if (loadSec && loadSec.parentElement) {
-    // Find the list container parent
-    var lp = document.getElementById('tl-load-section');
-    var rp = document.getElementById('tl-report-section');
-    if (lp) lp.style.display = tab === 'load' ? '' : 'none';
-    if (rp) rp.style.display = tab === 'report' ? '' : 'none';
-    if (!lp) loadTruckScreen();
-  }
+  ['load','report'].forEach(function(t) { var btn=document.getElementById('tl-tab-'+t); if(btn){ btn.classList.toggle('btn-primary',t===tab); btn.classList.toggle('btn-outline',t!==tab); } });
+  var lp = document.getElementById('tl-load-section'); if(lp) lp.style.display = tab==='load'?'':'none';
+  var rp = document.getElementById('tl-report-section'); if(rp) rp.style.display = tab==='report'?'':'none';
 }
 
-// ── Stock Count helpers ───────────────────────────────
 function printStockCount() {
-  var el = document.getElementById('sc-list') || document.getElementById('stock-count-content');
-  if (!el) { showToast('\u26A0\uFE0F Nothing to print'); return; }
-  var w = window.open('','_blank');
-  if (!w) { showToast('\u26A0\uFE0F Allow popups to print'); return; }
-  w.document.write('<html><head><title>Stock Count</title><style>body{font-family:sans-serif;padding:20px;}h2{margin-bottom:16px;}</style></head><body>');
-  w.document.write('<h2>Stock Count \u2014 ' + fmtDate(today()) + '</h2>');
-  w.document.write(el.innerHTML);
-  w.document.write('</body></html>');
-  w.document.close();
-  w.print();
+  var el = document.getElementById('stockcount-list') || document.getElementById('sc-list');
+  if (!el) { showToast('\u26a0\ufe0f Nothing to print'); return; }
+  var w = window.open('','_blank'); if(!w){showToast('\u26a0\ufe0f Allow popups');return;}
+  w.document.write('<html><head><title>Stock Count</title><style>body{font-family:sans-serif;padding:20px;}</style></head><body><h2>Stock Count \u2014 ' + fmtDate(today()) + '</h2>' + el.innerHTML + '</body></html>');
+  w.document.close(); w.print();
 }
 
 async function loadStockHistory() {
-  ['truck','warehouse','count','history'].forEach(function(t) {
-    var btn = document.getElementById('sc-tab-' + t);
-    if (btn) btn.classList.toggle('active', t === 'history');
-  });
-  var container = document.getElementById('sc-list') || document.getElementById('stock-count-content');
+  ['truck','warehouse','both','history'].forEach(function(t){ var btn=document.getElementById('sc-tab-'+t); if(btn) btn.classList.toggle('active',t==='history'); });
+  var container = document.getElementById('stockcount-list') || document.getElementById('sc-list');
   if (!container) return;
   var history = JSON.parse(localStorage.getItem('stock_count_history_' + STORE_ID) || '[]');
-  if (!history.length) {
-    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">\uD83D\uDCC5</div><div class="empty-state-text">No stock count history yet</div></div>';
-    return;
-  }
-  container.innerHTML = history.slice().reverse().slice(0, 30).map(function(h) {
-    return '<div class="card" style="padding:12px;margin-bottom:8px;">' +
-      '<div style="font-weight:700;">' + fmtDate(h.date||h.counted_at||'') + ' \u2014 ' + (h.mode||'Both') + '</div>' +
-      '<div style="font-size:.8rem;color:var(--text2);margin-top:4px;">' + (h.items||[]).length + ' products counted</div></div>';
-  }).join('');
+  container.innerHTML = history.length ? history.slice().reverse().slice(0,30).map(function(h) {
+    return '<div class="card" style="padding:12px;margin-bottom:8px;"><div style="font-weight:700;">' + fmtDate(h.date||h.counted_at||'') + ' \u2014 ' + (h.mode||'Both') + '</div><div style="font-size:.8rem;color:var(--text2);">' + (h.items||[]).length + ' products counted</div></div>';
+  }).join('') : '<div class="empty-state"><div class="empty-state-icon">\ud83d\udcc5</div><div class="empty-state-text">No stock count history</div></div>';
 }
 
-// ── Product photo remove ──────────────────────────────
 function removeProductPhoto() {
-  var preview = document.getElementById('product-photo-preview') || document.getElementById('prod-photo-wrap');
-  var input   = document.getElementById('prod-photo');
-  if (preview) preview.innerHTML = '';
-  if (input)   input.value = '';
-  if (window._editingProductId) {
-    localStorage.removeItem('prod_photo_' + window._editingProductId);
-    var p = (localCache['products']||[]).find(function(x){ return (x.id||x.product_id) == window._editingProductId; });
-    if (p) p.photo = null;
-  }
+  var prev = document.getElementById('prod-photo-preview') || document.getElementById('product-photo-preview');
+  var wrap = document.getElementById('photo-preview-wrap');
+  var area = document.getElementById('photo-upload-area');
+  var input = document.getElementById('prod-photo-input') || document.getElementById('prod-photo');
+  if (prev) prev.src = '';
+  if (wrap) wrap.style.display = 'none';
+  if (area) area.style.display = '';
+  if (input) input.value = '';
+  var dataEl = document.getElementById('prod-photo-data'); if(dataEl) dataEl.value = '';
+  if (window._editingProductId) { localStorage.removeItem('prod_photo_' + window._editingProductId); }
   showToast('\u2705 Photo removed');
 }
 
-// ── Set Target ────────────────────────────────────────
 function openSetTargetModal() {
-  if (typeof renderTargets === 'function') {
-    renderTargets('daily');
-    setTimeout(function() {
-      var inp = document.getElementById('target-input');
-      if (inp) inp.focus();
-    }, 300);
-  }
+  var modal = document.getElementById('set-target-modal');
+  if (modal) { modal.style.display = 'flex'; } else if (typeof renderTargets === 'function') { renderTargets('daily'); }
 }
 
-// ── Add Stock ─────────────────────────────────────────
 function openAddStockModal() {
-  if (typeof openProductModal === 'function') { openProductModal(null); return; }
-  var modal = document.getElementById('product-modal') || document.getElementById('add-product-modal');
-  if (modal) modal.style.display = 'flex';
-  else showToast('\u2139\uFE0F Use + button to add product');
+  if (typeof openProductModal === 'function') openProductModal(null);
+  else showToast('\u2139\ufe0f Use + to add product');
 }
 
-// ── Share Statement ───────────────────────────────────
 async function shareStatement() {
   var custId = window.selectedCustomerId;
-  if (!custId) { showToast('\u26A0\uFE0F No customer selected'); return; }
-  try {
-    var invs  = await dbGetByIndex('invoices', 'customer_id', custId);
-    var cust  = await dbGet('customers', custId);
-    var name  = cust ? cust.name : 'Customer';
-    var total = invs.reduce(function(a,i){ return a + parseFloat(i.total||i.total_amount||0); }, 0);
-    var text  = 'Statement for ' + name + '\nTotal outstanding: QR ' + total.toFixed(2) + '\nDate: ' + fmtDate(today());
-    if (navigator.share) {
-      navigator.share({ title: 'Statement \u2014 ' + name, text: text });
-    } else {
-      navigator.clipboard.writeText(text).then(function(){ showToast('\u2705 Copied to clipboard!'); });
-    }
-  } catch(e) { showToast('\u274C ' + e.message); }
+  if (!custId) { showToast('\u26a0\ufe0f No customer selected'); return; }
+  var invs = await dbGetByIndex('invoices','customer_id',custId);
+  var cust = await dbGet('customers', custId);
+  var total = invs.reduce(function(a,i){return a+parseFloat(i.total||i.total_amount||0);},0);
+  var text = 'Statement for ' + (cust?cust.name:'Customer') + '\nTotal outstanding: QR ' + total.toFixed(2) + '\nDate: ' + fmtDate(today());
+  if (navigator.share) navigator.share({title:'Statement',text:text});
+  else navigator.clipboard.writeText(text).then(function(){showToast('\u2705 Copied!');});
 }
 
-// ── Handover Submit ───────────────────────────────────
 async function submitHandover() {
-  var notes   = (document.getElementById('handover-notes') || {}).value || '';
   var empName = localStorage.getItem('employee_name') || 'Employee';
-  var d       = today();
+  var d = today();
+  var amountEl = document.getElementById('handover-amount');
+  var notes = (document.getElementById('handover-notes')||{}).value || '';
   var invoices = await dbGetAll('invoices');
-  var cashTotal = invoices
-    .filter(function(i){ return i.date === d && i.payment_type === 'cash'; })
-    .reduce(function(a,i){ return a + parseFloat(i.total||i.total_amount||0); }, 0);
+  var cashTotal = invoices.filter(function(i){return i.date===d && i.payment_type==='cash';}).reduce(function(a,i){return a+parseFloat(i.total||i.total_amount||0);},0);
+  var amount = amountEl ? parseFloat(amountEl.value)||cashTotal : cashTotal;
   var handovers = JSON.parse(localStorage.getItem('handovers_' + STORE_ID) || '[]');
-  handovers.push({
-    employee: empName, date: d,
-    time: new Date().toTimeString().slice(0,5),
-    amount: cashTotal, notes: notes,
-    submitted_at: new Date().toISOString()
-  });
+  handovers.push({ employee:empName, date:d, time:new Date().toTimeString().slice(0,5), amount:amount, notes:notes, submitted_at:new Date().toISOString() });
   localStorage.setItem('handovers_' + STORE_ID, JSON.stringify(handovers));
-  showToast('\u2705 Handover submitted \u2014 QR ' + cashTotal.toFixed(2));
-  if (typeof loadHandover === 'function') loadHandover();
+  showToast('\u2705 Handover submitted \u2014 QR ' + amount.toFixed(2));
+  if (typeof loadHandover==='function') loadHandover();
 }
 
 </script>
