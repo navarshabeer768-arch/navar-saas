@@ -4423,5 +4423,133 @@ async function confirmTruckLoad() {
   } catch(e) { showToast('❌ Load failed: ' + e.message); }
 }
 
+
+// ── Lock timer ────────────────────────────────────────────────
+var _lockTimer = null;
+function resetLockTimer() {
+  clearTimeout(_lockTimer);
+  var timeout = parseInt(localStorage.getItem('lock_timeout') || '0');
+  if (timeout > 0) {
+    _lockTimer = setTimeout(function() { logoutUser(); }, timeout * 60 * 1000);
+  }
+}
+
+// ── Truck helpers ──────────────────────────────────────────────
+function getTruckKey(owner) {
+  return 'truck_stock_' + STORE_ID + '_' + (owner || 'admin');
+}
+
+function getCurrentTruckOwner() {
+  var sel = document.getElementById('tl-emp-select');
+  return sel ? (sel.value || 'admin') : 'admin';
+}
+
+async function getMyTruckQtyMap() {
+  var owner = getCurrentTruckOwner();
+  var key = getTruckKey(owner);
+  try { return JSON.parse(localStorage.getItem(key) || '{}'); } catch(e) { return {}; }
+}
+
+function getMyTruckQtyMapSync() {
+  var owner = getCurrentTruckOwner();
+  var key = getTruckKey(owner);
+  try { return JSON.parse(localStorage.getItem(key) || '{}'); } catch(e) { return {}; }
+}
+
+async function loadTruckStock(owner) {
+  var key = getTruckKey(owner);
+  try { return JSON.parse(localStorage.getItem(key) || '{}'); } catch(e) { return {}; }
+}
+
+async function loadTruckScreen() {
+  delete localCache['products'];
+  const products = await dbGetAll('products');
+  const owner = getCurrentTruckOwner();
+  const truckStock = await loadTruckStock(owner);
+
+  // Warehouse stock from products.stock
+  const whMap = {};
+  products.forEach(p => whMap[p.id||p.product_id] = parseFloat(p.stock||p.stock_quantity||0));
+
+  let truckTotalBoxes = 0, whTotalBoxes = 0;
+  products.forEach(p => {
+    const cpb = getCasesPerBox(p) || 4;
+    let truckQty = parseFloat(truckStock[p.id||p.product_id] || 0);
+    truckTotalBoxes += Math.floor(truckQty / cpb);
+    whTotalBoxes += Math.floor(parseFloat(whMap[p.id||p.product_id]||0) / cpb);
+  });
+
+  var ttEl = document.getElementById('tl-truck-total');
+  var whEl = document.getElementById('tl-warehouse-total');
+  if (ttEl) ttEl.textContent = truckTotalBoxes + ' boxes';
+  if (whEl) whEl.textContent = whTotalBoxes + ' boxes';
+
+  const list = document.getElementById('truckload-list');
+  if (!list) return;
+  if (!products.length) {
+    list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📦</div><div class="empty-state-text">No products</div></div>';
+    return;
+  }
+
+  list.innerHTML = products.map(p => {
+    const cpb = getCasesPerBox(p) || 4;
+    let truckQty = parseFloat(truckStock[p.id||p.product_id] || 0);
+    const whQty = parseFloat(whMap[p.id||p.product_id] || p.stock || 0);
+    const truckFmt = fmtStock(truckQty, cpb);
+    const whFmt = fmtStock(whQty, cpb);
+    const photo = p.photo ? `<img src="${p.photo}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;">` :
+      `<div style="width:48px;height:48px;background:var(--bg2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;">${p.icon||'📦'}</div>`;
+    const truckColor = truckQty <= 0 ? 'color-red' : 'color-navy';
+    return `<div class="card" style="margin-bottom:8px;padding:12px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        ${photo}
+        <div style="flex:1;">
+          <div style="font-weight:700;">${p.name}</div>
+          <div style="font-size:.75rem;color:var(--text2);">${p.category||''} · ${cpb} cases/box</div>
+          <div style="font-size:.8rem;margin-top:4px;">
+            <span class="${truckColor}" style="font-weight:700;">🚛 ${truckFmt}</span>
+            &nbsp;&nbsp;<span style="color:var(--green);font-weight:700;">🏭 WH: ${whFmt}</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <button class="btn btn-primary btn-sm" onclick="openTruckLoadModal(${p.product_id||p.id},'${p.name}',${truckQty},${whQty},${cpb})">🚛 Load</button>
+          <button class="btn btn-outline btn-sm" onclick="openTruckReturnModal(${p.product_id||p.id},'${p.name}',${truckQty},${whQty},${cpb})">↩ Return</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Screen loaders (stubs for missing screens) ─────────────────
+function loadCollection() {
+  showScreen('collection-screen');
+  if (typeof renderCollection === 'function') renderCollection();
+}
+
+function loadStockCount(mode) {
+  showScreen('inventory-screen');
+  switchInvTab(mode || 'truck');
+}
+
+function openHandoverScreen() {
+  showScreen('handover-screen');
+  if (typeof loadHandover === 'function') loadHandover();
+}
+
+function loadTargets() {
+  showScreen('targets-screen');
+  if (typeof renderTargets === 'function') renderTargets();
+}
+
+function loadAuditLog() {
+  showScreen('reports-screen');
+  if (typeof renderAuditLog === 'function') renderAuditLog();
+}
+
+function loadApprovals() {
+  showScreen('approvals-screen');
+  if (typeof renderApprovals === 'function') renderApprovals();
+}
+
 </script>
     </body></html>
