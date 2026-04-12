@@ -4340,5 +4340,88 @@ function returnFromTruck(productId) {
   var p = (window._posProducts||[]).find(function(x){ return String(x.id||x.product_id) === String(productId); });
   openTruckReturnModal(productId, p ? p.name : 'Product');
 }
+
+// ── Role & Permission helpers ────────────────────────────────
+function isAdmin() {
+  return currentUserRole === 'admin' || currentUserRole === 'owner' ||
+    localStorage.getItem('navar_role_' + STORE_ID) === 'admin';
+}
+
+function applyRoleUI() {
+  var role = currentUserRole || localStorage.getItem('navar_role_' + STORE_ID) || 'admin';
+  var isAdm = (role === 'admin' || role === 'owner');
+  // Hide admin-only nav items for employees
+  document.querySelectorAll('[data-admin-only]').forEach(function(el) {
+    el.style.display = isAdm ? '' : 'none';
+  });
+  document.querySelectorAll('[data-employee-only]').forEach(function(el) {
+    el.style.display = isAdm ? 'none' : '';
+  });
+  // Update user display
+  var nameEl = document.getElementById('current-user-name');
+  if (nameEl) nameEl.textContent = isAdm ? 'Admin' : (localStorage.getItem('employee_name') || 'Employee');
+}
+
+async function ensureInvoiceColumns() {
+  // No-op: we handle column validation via REMOVE_COLUMNS in dbAdd/dbPut
+  // This function exists for compatibility
+  return true;
+}
+
+
+// ── Inventory tab switching ──────────────────────────────────
+function switchInvTab(tab) {
+  ['truck','warehouse','count'].forEach(function(t) {
+    var btn = document.getElementById('inv-tab-' + t);
+    if (btn) btn.classList.toggle('active', t === tab);
+  });
+  var invList = document.getElementById('inventory-list');
+  var countSec = document.getElementById('stock-count-section');
+  if (tab === 'count') {
+    if (countSec) countSec.style.display = '';
+    if (invList) invList.style.display = 'none';
+  } else {
+    if (countSec) countSec.style.display = 'none';
+    if (invList) { invList.style.display = ''; loadInventory(); }
+  }
+}
+
+// ── Truck load confirm ───────────────────────────────────────
+async function confirmTruckLoad() {
+  var productId = parseInt(document.getElementById('tl-product-id').value);
+  var boxes = parseInt(document.getElementById('tl-qty').value) || 0;
+  if (boxes <= 0) { showToast('⚠️ Enter valid quantity!'); return; }
+  var cpb = parseInt(document.getElementById('tl-product-id').dataset.cpb) || 4;
+  var units = boxes * cpb;
+  var owner = getCurrentTruckOwner();
+
+  // Get warehouse stock from products.stock
+  var prod = (localCache['products']||[]).find(function(p){ return parseInt(p.id||p.product_id)===productId; });
+  var whUnits = prod ? parseFloat(prod.stock||prod.stock_quantity||0) : 0;
+  if (whUnits <= 0) {
+    try {
+      var res = await sb.from('products').select('id,stock').eq('id',productId).single();
+      if (!res.error && res.data) whUnits = parseFloat(res.data.stock||0);
+    } catch(e) {}
+  }
+  if (units > whUnits) {
+    showToast('⚠️ Only ' + Math.floor(whUnits/cpb) + ' boxes in warehouse!');
+    return;
+  }
+  var newStock = whUnits - units;
+  try {
+    await sb.from('products').update({stock: newStock}).eq('id', productId);
+    if (prod) { prod.stock = newStock; prod.stock_quantity = newStock; }
+    var truckKey = 'truck_stock_' + STORE_ID + '_' + (owner || 'admin');
+    var truckMap = {};
+    try { truckMap = JSON.parse(localStorage.getItem(truckKey) || '{}'); } catch(e) {}
+    truckMap[productId] = (parseFloat(truckMap[productId]||0)) + units;
+    localStorage.setItem(truckKey, JSON.stringify(truckMap));
+    showToast('✅ Loaded ' + boxes + ' boxes onto truck!');
+    closeModal('modal-truck-load');
+    if (typeof loadTruckScreen === 'function') loadTruckScreen();
+  } catch(e) { showToast('❌ Load failed: ' + e.message); }
+}
+
 </script>
     </body></html>
