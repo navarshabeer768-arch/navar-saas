@@ -2036,7 +2036,7 @@ function showScreen(id) {
     try { if (id === 'targets-screen') loadTargets('daily'); } catch(e){}
     try { if (id === 'audit-screen') loadAuditLog(); } catch(e){}
     try { if (id === 'collection-screen') { const d=document.getElementById('col-date'); if(d&&!d.value)d.value=today(); loadCollection(); } } catch(e){}
-    try { if (id === 'stockcount-screen') loadStockCount(currentStockCountMode||'truck'); } catch(e){}
+    try { if (id === 'inventory-screen' || id === 'stockcount-screen') { loadInventory(); } } catch(e){}
     try { if (id === 'targets-screen') loadTargets('daily'); } catch(e){}
     try { if (id === 'statement-screen') {} } catch(e){}
   } catch(e) { console.error('showScreen error:', e); }
@@ -4527,12 +4527,9 @@ function loadCollection() {
 }
 
 function loadStockCount(mode) {
-  // Navigate to inventory directly without going through showScreen
-  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
-  var sc = document.getElementById('inventory-screen');
-  if (sc) { sc.classList.add('active'); sc.style.display=''; }
-  loadInventory();
-  switchInvTab(mode || 'warehouse');
+  // Just switch inventory tab without navigating screens
+  if (typeof loadInventory === 'function') loadInventory();
+  if (typeof switchInvTab === 'function') switchInvTab(mode || 'warehouse');
 }
 
 function openHandoverScreen() {
