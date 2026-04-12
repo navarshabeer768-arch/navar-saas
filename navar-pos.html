@@ -4522,8 +4522,14 @@ async function loadTruckScreen() {
 
 // ── Screen loaders (stubs for missing screens) ─────────────────
 function loadCollection() {
-  showScreen('collection-screen');
+  // Don't call showScreen - it's already called by the button onclick
   if (typeof renderCollection === 'function') renderCollection();
+  // Load collection data
+  var dateEl = document.getElementById('col-date');
+  if (dateEl && !dateEl.value) dateEl.value = today();
+  var empEl = document.getElementById('col-emp-filter');
+  // Render collection list
+  try { renderCollectionList(); } catch(e) {}
 }
 
 function loadStockCount(mode) {
@@ -4533,13 +4539,13 @@ function loadStockCount(mode) {
 }
 
 function openHandoverScreen() {
-  showScreen('handover-screen');
   if (typeof loadHandover === 'function') loadHandover();
 }
 
 function loadTargets() {
   showScreen('targets-screen');
-  if (typeof renderTargets === 'function') 
+  if (typeof renderTargets === 'function') renderTargets();
+}
 // ── Format helpers ────────────────────────────────────────────
 function fmt(n) {
   n = parseFloat(n) || 0;
@@ -4633,18 +4639,26 @@ async function _directTruckReturn(productId, boxes, cpb, truckUnits, name) {
   } catch(e) { showToast('❌ ' + e.message); }
 }
 
-renderTargets();
-}
+
+
 
 function loadAuditLog() {
-  showScreen('reports-screen');
   if (typeof renderAuditLog === 'function') renderAuditLog();
 }
 
 function loadApprovals() {
-  showScreen('approvals-screen');
   if (typeof renderApprovals === 'function') renderApprovals();
 }
 
+
+function printCollection() {
+  window.print();
+}
+
+function renderCollectionList() {
+  var list = document.getElementById('collection-list') || document.getElementById('col-list');
+  if (!list) return;
+  // Will be rendered by existing collection logic
+}
 </script>
     </body></html>
