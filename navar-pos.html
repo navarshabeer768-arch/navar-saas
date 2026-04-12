@@ -4527,8 +4527,12 @@ function loadCollection() {
 }
 
 function loadStockCount(mode) {
-  showScreen('inventory-screen');
-  switchInvTab(mode || 'truck');
+  // Navigate to inventory directly without going through showScreen
+  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+  var sc = document.getElementById('inventory-screen');
+  if (sc) { sc.classList.add('active'); sc.style.display=''; }
+  loadInventory();
+  switchInvTab(mode || 'warehouse');
 }
 
 function openHandoverScreen() {
@@ -4538,7 +4542,101 @@ function openHandoverScreen() {
 
 function loadTargets() {
   showScreen('targets-screen');
-  if (typeof renderTargets === 'function') renderTargets();
+  if (typeof renderTargets === 'function') 
+// ── Format helpers ────────────────────────────────────────────
+function fmt(n) {
+  n = parseFloat(n) || 0;
+  return 'QR ' + n.toFixed(3);
+}
+
+function monthStart() {
+  var d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-01';
+}
+
+// ── Audit log ─────────────────────────────────────────────────
+function logAudit(action, detail) {
+  try {
+    var key = 'audit_log_' + STORE_ID;
+    var log = JSON.parse(localStorage.getItem(key) || '[]');
+    log.unshift({ action: action, detail: detail, 
+      time: new Date().toISOString(), user: localStorage.getItem('employee_name')||'Admin' });
+    if (log.length > 200) log = log.slice(0,200);
+    localStorage.setItem(key, JSON.stringify(log));
+  } catch(e) {}
+}
+
+// ── Truck load/return modals ───────────────────────────────────
+function openTruckLoadModal(productId, name, truckQty, whQty, cpb) {
+  cpb = cpb || 4;
+  var pidEl = document.getElementById('tl-product-id');
+  var infoEl = document.getElementById('tl-stock-info');
+  var qtyEl = document.getElementById('tl-qty');
+  var btnEl = document.getElementById('tl-confirm-btn');
+  if (!pidEl) {
+    // Fallback: use prompt
+    var boxes = parseInt(prompt('Load how many boxes of ' + name + '? (WH: ' + Math.floor(whQty/cpb) + ' boxes)', '1'));
+
+    if (!boxes || boxes <= 0) return;
+    _directTruckLoad(productId, boxes, cpb, whQty, name);
+    return;
+  }
+  pidEl.value = productId;
+  pidEl.dataset.cpb = cpb;
+  if (infoEl) infoEl.innerHTML = '<strong>' + name + '</strong><br>🚛 Truck: <strong>' + 
+    fmtStock(truckQty, cpb) + '</strong> | 🏭 WH: <strong>' + fmtStock(whQty, cpb) + 
+    '</strong><br><small>Enter number of boxes to load (1 box = ' + cpb + ' bags)</small>';
+  if (qtyEl) qtyEl.value = '';
+  if (btnEl) btnEl.textContent = isAdmin() ? '🚛 Load Now' : '📤 Request Admin Approval';
+  openModal('modal-truck-load');
+}
+
+function openTruckReturnModal(productId, name, truckQty, whQty, cpb) {
+  cpb = cpb || 4;
+  var boxes = parseInt(prompt('Return how many boxes of ' + name + ' from truck? (Truck: ' + Math.floor(truckQty/cpb) + ' boxes)', '1'));
+
+  if (!boxes || boxes <= 0) return;
+  _directTruckReturn(productId, boxes, cpb, truckQty, name);
+}
+
+async function _directTruckLoad(productId, boxes, cpb, whUnits, name) {
+  var units = boxes * cpb;
+  if (units > whUnits) { showToast('⚠️ Only ' + Math.floor(whUnits/cpb) + ' boxes in warehouse!'); return; }
+  var newStock = whUnits - units;
+  try {
+    await sb.from('products').update({stock: newStock}).eq('id', productId);
+    var truckKey = 'truck_stock_' + STORE_ID + '_admin';
+    var truckMap = JSON.parse(localStorage.getItem(truckKey) || '{}');
+    truckMap[productId] = (parseFloat(truckMap[productId]||0)) + units;
+    localStorage.setItem(truckKey, JSON.stringify(truckMap));
+    // Update cache
+    var p = (localCache['products']||[]).find(function(x){ return parseInt(x.id||x.product_id)===productId; });
+    if (p) { p.stock = newStock; p.stock_quantity = newStock; }
+    showToast('✅ Loaded ' + boxes + ' boxes of ' + name + '!');
+    loadTruckScreen();
+  } catch(e) { showToast('❌ ' + e.message); }
+}
+
+async function _directTruckReturn(productId, boxes, cpb, truckUnits, name) {
+  var units = boxes * cpb;
+  if (units > truckUnits) { showToast('⚠️ Only ' + Math.floor(truckUnits/cpb) + ' boxes on truck!'); return; }
+  try {
+    // Add back to warehouse
+    var res = await sb.from('products').select('id,stock').eq('id', productId).single();
+    var curStock = res.data ? parseFloat(res.data.stock||0) : 0;
+    await sb.from('products').update({stock: curStock + units}).eq('id', productId);
+    var truckKey = 'truck_stock_' + STORE_ID + '_admin';
+    var truckMap = JSON.parse(localStorage.getItem(truckKey) || '{}');
+    truckMap[productId] = Math.max(0, (parseFloat(truckMap[productId]||0)) - units);
+    localStorage.setItem(truckKey, JSON.stringify(truckMap));
+    var p = (localCache['products']||[]).find(function(x){ return parseInt(x.id||x.product_id)===productId; });
+    if (p) { p.stock = curStock + units; p.stock_quantity = curStock + units; }
+    showToast('✅ Returned ' + boxes + ' boxes of ' + name + ' to warehouse!');
+    loadTruckScreen();
+  } catch(e) { showToast('❌ ' + e.message); }
+}
+
+renderTargets();
 }
 
 function loadAuditLog() {
