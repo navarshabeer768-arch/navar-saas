@@ -2033,11 +2033,11 @@ function showScreen(id) {
     try { if (id === 'settings-screen') { loadSettings(); loadEmpList().catch(()=>{}); } } catch(e){}
     try { if (id === 'approval-screen') loadApprovals('pending'); } catch(e){}
     // handover-screen: opened via openHandoverScreen() directly from home button only
-    try { if (id === 'targets-screen') loadTargets('daily'); } catch(e){}
-    try { if (id === 'audit-screen') loadAuditLog(); } catch(e){}
+
+
     try { if (id === 'collection-screen') { const d=document.getElementById('col-date'); if(d&&!d.value)d.value=today(); loadCollection(); } } catch(e){}
     try { if (id === 'inventory-screen' || id === 'stockcount-screen') { loadInventory(); } } catch(e){}
-    try { if (id === 'targets-screen') loadTargets('daily'); } catch(e){}
+
     try { if (id === 'statement-screen') {} } catch(e){}
   } catch(e) { console.error('showScreen error:', e); }
 }
@@ -2220,49 +2220,7 @@ async function loadSettingsObj() {
 }
 
 
-async function updateHomeSummary() {
-  const t = today();
-  document.getElementById('home-date').textContent = fmtDate(t) + ' — Qatar Time';
-  const invoices = await dbGetByIndex('invoices', 'date', t);
-  const totalSales = invoices.reduce((a, i) => a + i.total_amount, 0);
-  document.getElementById('hs-sales').textContent = 'QR ' + totalSales.toFixed(0);
-  document.getElementById('hs-invoices').textContent = invoices.length;
-  // Profit: need cost
-  const allItems = await dbGetAll('invoice_items');
-  const allProds = await dbGetAll('products');
-  const prodMap = {};
-  allProds.forEach(p => prodMap[p.product_id] = p);
-  let cost = 0;
-  for (const inv of invoices) {
-    const items = allItems.filter(i => i.invoice_id === inv.invoice_id);
-    for (const it of items) {
-      const p = prodMap[it.product_id];
-      if (p) {
-        const cpb = getCasesPerBox(p) || 1;
-        cost += (p.cost_price / cpb) * it.quantity; // cost per bag × bags sold
-      }
-    }
-  }
-  const exps = await dbGetByIndex('expenses', 'date', t);
-  const totalExp = exps.reduce((a, e) => a + e.amount, 0);
-  const profit = totalSales - cost - totalExp;
-  const profitEl = document.getElementById('hs-profit');
-  profitEl.textContent = 'QR ' + profit.toFixed(0);
-  profitEl.style.color = profit >= 0 ? '#4cff72' : '#ff6b6b';
-  // Update orders badge
-  try {
-    const orders = await dbGetAll('advance_orders');
-    const pending = orders.filter(o => o.status === 'pending');
-    const badge = document.getElementById('orders-badge');
-    if (badge) {
-      if (pending.length > 0) { badge.style.display = 'flex'; badge.textContent = pending.length; }
-      else { badge.style.display = 'none'; }
-    }
-  } catch(e) {}
-  // Update approval badge and target progress
-  try { updateApprovalBadge(); } catch(e) {}
-  try { updateTargetBadge(); } catch(e) {}
-}
+
 
 // ═══════════════════════════════════════════════
 // POS SCREEN
@@ -4418,7 +4376,7 @@ async function confirmTruckLoad() {
     truckMap[productId] = (parseFloat(truckMap[productId]||0)) + units;
     localStorage.setItem(truckKey, JSON.stringify(truckMap));
     showToast('✅ Loaded ' + boxes + ' boxes onto truck!');
-    closeModal('modal-truck-load');
+    closeModal('truckload-modal');
     if (typeof loadTruckScreen === 'function') loadTruckScreen();
   } catch(e) { showToast('❌ Load failed: ' + e.message); }
 }
@@ -4591,7 +4549,7 @@ function openTruckLoadModal(productId, name, truckQty, whQty, cpb) {
     '</strong><br><small>Enter number of boxes to load (1 box = ' + cpb + ' bags)</small>';
   if (qtyEl) qtyEl.value = '';
   if (btnEl) btnEl.textContent = isAdmin() ? '🚛 Load Now' : '📤 Request Admin Approval';
-  openModal('modal-truck-load');
+  openModal('truckload-modal');
 }
 
 function openTruckReturnModal(productId, name, truckQty, whQty, cpb) {
@@ -4643,7 +4601,7 @@ async function _directTruckReturn(productId, boxes, cpb, truckUnits, name) {
 
 
 function loadAuditLog() {
-  if (typeof renderAuditLog === 'function') renderAuditLog();
+  try { if (typeof renderAuditLog === 'function') renderAuditLog(); } catch(e) {}
 }
 
 function loadApprovals() {
@@ -4660,5 +4618,67 @@ function renderCollectionList() {
   if (!list) return;
   // Will be rendered by existing collection logic
 }
+
+// ── Badge/counter stubs ───────────────────────────────────────
+function updateApprovalBadge() {
+  try {
+    var badge = document.getElementById('approvals-badge');
+    if (!badge) return;
+    var requests = JSON.parse(localStorage.getItem('truck_requests_' + STORE_ID) || '[]');
+    var pending = requests.filter(function(r){ return r.status === 'pending'; });
+    badge.style.display = pending.length > 0 ? 'flex' : 'none';
+    badge.textContent = pending.length;
+  } catch(e) {}
+}
+
+function updateTargetBadge() {
+  try {
+    var badge = document.getElementById('targets-badge');
+    if (badge) badge.style.display = 'none';
+  } catch(e) {}
+}
+
+function updateHomeSummary() {
+  try {
+    var t = today();
+    var dateEl = document.getElementById('home-date');
+    if (dateEl) dateEl.textContent = fmtDate(t) + ' — Qatar Time';
+    // Load today sales from cache
+    var invoices = (localCache['invoices'] || []).filter(function(i){ return i.date === t; });
+    var totalSales = invoices.reduce(function(a,i){ return a + parseFloat(i.total_amount||0); }, 0);
+    var salesEl = document.getElementById('hs-sales');
+    var invEl = document.getElementById('hs-invoices');
+    var profitEl = document.getElementById('hs-profit');
+    if (salesEl) salesEl.textContent = 'QR ' + totalSales.toFixed(0);
+    if (invEl) invEl.textContent = invoices.length;
+    if (profitEl) { profitEl.textContent = 'QR 0'; profitEl.style.color = '#4cff72'; }
+    updateApprovalBadge();
+    updateTargetBadge();
+  } catch(e) { console.warn('updateHomeSummary:', e.message); }
+}
+
+// ── confirmTruckReturn ────────────────────────────────────────
+async function confirmTruckReturn() {
+  var productId = parseInt(document.getElementById('tr-product-id')?.value || 0);
+  var boxes = parseInt(document.getElementById('tr-qty')?.value || 0);
+  if (!productId || boxes <= 0) { showToast('⚠️ Enter valid quantity'); return; }
+  var cpb = parseInt(document.getElementById('tr-product-id')?.dataset.cpb || 4);
+  var units = boxes * cpb;
+  try {
+    var res = await sb.from('products').select('id,stock').eq('id', productId).single();
+    var curStock = res.data ? parseFloat(res.data.stock||0) : 0;
+    await sb.from('products').update({stock: curStock + units}).eq('id', productId);
+    var truckKey = 'truck_stock_' + STORE_ID + '_' + (getCurrentTruckOwner() || 'admin');
+    var truckMap = JSON.parse(localStorage.getItem(truckKey) || '{}');
+    truckMap[productId] = Math.max(0, (parseFloat(truckMap[productId]||0)) - units);
+    localStorage.setItem(truckKey, JSON.stringify(truckMap));
+    var p = (localCache['products']||[]).find(function(x){ return parseInt(x.id||x.product_id)===productId; });
+    if (p) { p.stock = curStock + units; p.stock_quantity = curStock + units; }
+    showToast('✅ Returned ' + boxes + ' boxes to warehouse!');
+    closeModal('truckload-modal');
+    loadTruckScreen();
+  } catch(e) { showToast('❌ ' + e.message); }
+}
+
 </script>
     </body></html>
