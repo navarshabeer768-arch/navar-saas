@@ -1864,9 +1864,9 @@ async function dbGetByIndex(table, col, val) {
 
 // Columns not in Supabase schema - stripped before insert/update
 const REMOVE_COLUMNS = {
-  customers: ['contact_person','address','notes','credit_limit','credit_balance','phone'],
+  customers: ['contact_person','notes','credit_limit','credit_balance'],
   expenses: ['notes','tags','receipt'],
-  invoices: ['cash_paid','change_amount','salesman','invoice_items','time','cheque_number','cheque_date','salesman_name'],
+  invoices: ['cash_paid','change_amount','invoice_items','time','cheque_number','cheque_date','salesman_name','total_amount'],
   products: ['cases_per_box','low_stock_threshold','icon','cost_price','selling_price','stock_quantity','product_id']
 };
 
@@ -2241,7 +2241,7 @@ async function loadPOSScreen() {
   const sel = document.getElementById('pos-customer');
   sel.innerHTML = '<option value="">-- Select Customer (Optional) --</option>';
   custs.sort((a,b)=>a.name.localeCompare(b.name)).forEach(c => {
-    sel.innerHTML += `<option value="${c.customer_id}">${c.name}</option>`;
+    sel.innerHTML += `<option value="${(c.id||c.customer_id)}">${c.name}</option>`;
   });
   // Load products
   const prods = await dbGetAll('products');
@@ -2624,7 +2624,7 @@ async function completeOrder() {
           throw new Error(result.error.message);
         }
       } else if (result?.data) {
-        invId = result.data.invoice_id;
+        invId = result.data.id || result.data.invoice_id;
         if (!localCache['invoices']) localCache['invoices'] = [];
         localCache['invoices'].push(JSON.parse(JSON.stringify(result.data)));
       }
@@ -2907,7 +2907,7 @@ async function loadCustomers() {
   }
   custs.sort((a,b) => a.name.localeCompare(b.name));
   list.innerHTML = custs.map(c => `
-    <div class="cust-card ${c.credit_balance > 0 ? 'has-credit' : 'no-credit'}" onclick="viewCustomer(${c.customer_id})">
+    <div class="cust-card ${c.credit_balance > 0 ? 'has-credit' : 'no-credit'}" onclick="viewCustomer(${(c.id||c.customer_id)})">
       <div class="flex-between">
         <div>
           <div class="cust-name">${c.name}</div>
@@ -2931,7 +2931,7 @@ function filterCustomers() {
     // Re-render only filtered
     const list = document.getElementById('customers-list');
     list.innerHTML = filtered.map(c => `
-      <div class="cust-card ${c.credit_balance > 0 ? 'has-credit' : 'no-credit'}" onclick="viewCustomer(${c.customer_id})">
+      <div class="cust-card ${c.credit_balance > 0 ? 'has-credit' : 'no-credit'}" onclick="viewCustomer(${(c.id||c.customer_id)})">
         <div class="flex-between">
           <div>
             <div class="cust-name">${c.name}</div>
@@ -2947,7 +2947,7 @@ function filterCustomers() {
 
 function openCustomerModal(cust) {
   document.getElementById('cust-modal-title').textContent = cust ? '✏️ Edit Customer' : '➕ Add Customer';
-  document.getElementById('cust-id').value = cust ? cust.customer_id : '';
+  document.getElementById('cust-id').value = cust ? (cust.id||cust.customer_id) : '';
   document.getElementById('cust-name').value = cust ? cust.name : '';
   document.getElementById('cust-contact').value = cust ? cust.contact_person || '' : '';
   document.getElementById('cust-phone').value = cust ? cust.phone || '' : '';
@@ -2988,7 +2988,7 @@ async function saveCustomer() {
     } else {
       // Update local cache
       if (!localCache['customers']) localCache['customers'] = [];
-      const idx = localCache['customers'].findIndex(r => r.customer_id == baseData.customer_id);
+      const idx = localCache['customers'].findIndex(r => (r.id||r.customer_id) == baseData.customer_id);
       if (idx >= 0) localCache['customers'][idx] = withLimit;
       else localCache['customers'].push(withLimit);
     }
@@ -3003,7 +3003,7 @@ async function saveCustomer() {
         // Column missing — insert without it
         const res2 = await sb.from('customers').insert(baseData).select().single();
         if (res2.error) throw new Error(res2.error.message);
-        const newId = res2.data?.customer_id;
+        const newId = res2.data?.id || res2.data?.customer_id;
         if (!localCache['customers']) localCache['customers'] = [];
         localCache['customers'].push(res2.data);
         if (creditLimit > 0) await saveCreditLimitLocal(newId, creditLimit);
@@ -3049,7 +3049,7 @@ async function viewCustomer(id) {
     <div class="summary-row"><span>🧾 Invoices:</span><span>${invoices.length}</span></div>
     <div class="summary-row"><span>💰 Total Purchases:</span><span>${fmtMoney(totalPurchases)}</span></div>
     <div class="summary-row total"><span>💳 Credit Balance:</span><span class="${cust.credit_balance>0?'color-red':'color-green'}">${fmtMoney(cust.credit_balance)}</span></div>
-    ${(()=>{const lim=(cust.credit_limit||0)||getCreditLimitLocal(cust.customer_id); return lim>0?`<div class="summary-row"><span>🚦 Credit Limit:</span><span style="color:${(cust.credit_balance||0)>lim?'var(--red)':'var(--green)'};">${fmtMoney(lim)} ${(cust.credit_balance||0)>lim?'⚠️ EXCEEDED':''}</span></div>`:'';})()}
+    ${(()=>{const lim=(cust.credit_limit||0)||getCreditLimitLocal((cust.id||cust.customer_id)); return lim>0?`<div class="summary-row"><span>🚦 Credit Limit:</span><span style="color:${(cust.credit_balance||0)>lim?'var(--red)':'var(--green)'};">${fmtMoney(lim)} ${(cust.credit_balance||0)>lim?'⚠️ EXCEEDED':''}</span></div>`:'';})()}
   </div>`;
   if (invoices.length > 0) {
     html += '<div class="section-title" style="margin-top:12px;">Recent Invoices</div>';
@@ -3068,7 +3068,7 @@ async function viewCustomer(id) {
 function openCreditPayModal() {
   closeModal('cust-detail-modal');
   dbGet('customers', selectedCustomerId).then(cust => {
-    document.getElementById('cp-cust-id').value = cust.customer_id;
+    document.getElementById('cp-cust-id').value = (cust.id||cust.customer_id);
     document.getElementById('cp-balance-info').textContent = `Outstanding: QR ${(cust.credit_balance||0).toFixed(2)}`;
     document.getElementById('cp-amount').value = '';
     const cn = document.getElementById('cp-cheque-num'); if(cn) cn.value='';
@@ -3142,7 +3142,7 @@ async function loadInvoices() {
   let invoices = date ? await dbGetByIndex('invoices', 'date', date) : await dbGetAll('invoices');
   const customers = await dbGetAll('customers');
   const custMap = {};
-  customers.forEach(c => custMap[c.customer_id] = c);
+  customers.forEach(c => custMap[(c.id||c.customer_id)] = c);
   // Merge salesman meta
   const _invMeta = await getSalesmanMeta();
   invoices.forEach(inv => { const mn = _invMeta[String(inv.invoice_id)]; if(mn) inv.salesman_name = mn; });
@@ -3229,7 +3229,7 @@ async function viewInvoice(id) {
   const prods = await dbGetAll('products');
   const custs = await dbGetAll('customers');
   const prodMap = {}; prods.forEach(p=>{ prodMap[p.product_id]=p; prodMap[String(p.product_id)]=p; });
-  const custMap = {}; custs.forEach(c=>custMap[c.customer_id]=c);
+  const custMap = {}; custs.forEach(c=>custMap[(c.id||c.customer_id)]=c);
   const cust = custMap[inv.customer_id];
   let html = `<div class="card">
     <div class="summary-row"><span>Invoice #</span><span>${String(id).padStart(4,'0')}</span></div>
@@ -3259,7 +3259,7 @@ async function reprintInvoice(type) {
   const prods = await dbGetAll('products');
   const custs = await dbGetAll('customers');
   const prodMap = {}; prods.forEach(p=>{ prodMap[p.product_id]=p; prodMap[String(p.product_id)]=p; });
-  const custMap = {}; custs.forEach(c=>custMap[c.customer_id]=c);
+  const custMap = {}; custs.forEach(c=>custMap[(c.id||c.customer_id)]=c);
   const cust = custMap[inv.customer_id] || null;
   closeModal('inv-detail-modal');
   if (type === 'thermal') printThermalReceipt(inv, items, cust, prodMap);
@@ -3278,7 +3278,7 @@ async function reprintPDF(type) {
     const prods = await dbGetAll('products');
     const custs = await dbGetAll('customers');
     const prodMap = {}; prods.forEach(p=>{ prodMap[p.product_id]=p; prodMap[String(p.product_id)]=p; });
-    const custMap = {}; custs.forEach(c=>custMap[c.customer_id]=c);
+    const custMap = {}; custs.forEach(c=>custMap[(c.id||c.customer_id)]=c);
     const cust = custMap[inv.customer_id] || null;
     // Build HTML into window._invHTML
     if (type === 'thermal') printThermalReceipt(inv, items, cust, prodMap);
@@ -3662,7 +3662,7 @@ async function printReturnReceipt(invoiceId, returnedItems, totalRefund) {
   const inv = await dbGet('invoices', invoiceId);
   const customers = await dbGetAll('customers');
   const products = await dbGetAll('products');
-  const custMap = {}; customers.forEach(c => custMap[c.customer_id] = c);
+  const custMap = {}; customers.forEach(c => custMap[(c.id||c.customer_id)] = c);
   const prodMap = {}; products.forEach(p => { prodMap[p.product_id]=p; prodMap[String(p.product_id)]=p; });
   const cust = custMap[inv?.customer_id];
   const s = settings;
@@ -4380,11 +4380,9 @@ async function confirmTruckLoad() {
   try {
     await sb.from('products').update({stock: newStock}).eq('id', productId);
     if (prod) { prod.stock = newStock; prod.stock_quantity = newStock; }
-    var truckKey = 'truck_stock_' + STORE_ID + '_' + (owner || 'admin');
-    var truckMap = {};
-    try { truckMap = JSON.parse(localStorage.getItem(truckKey) || '{}'); } catch(e) {}
+    var truckMap = await loadTruckStock(owner);
     truckMap[productId] = (parseFloat(truckMap[productId]||0)) + units;
-    localStorage.setItem(truckKey, JSON.stringify(truckMap));
+    await saveTruckStock(owner, truckMap);
     showToast('✅ Loaded ' + boxes + ' boxes onto truck!');
     closeModal('truckload-modal');
     if (typeof loadTruckScreen === 'function') loadTruckScreen();
@@ -4424,8 +4422,33 @@ function getMyTruckQtyMapSync() {
   try { return JSON.parse(localStorage.getItem(key) || '{}'); } catch(e) { return {}; }
 }
 
+async function saveTruckStock(owner, stockMap) {
+  var key = getTruckKey(owner);
+  var jsonVal = JSON.stringify(stockMap);
+  localStorage.setItem(key, jsonVal);
+  try {
+    var existing = await sb.from('settings').select('id').eq('store_id', STORE_ID).eq('key', key).single();
+    if (existing.data) {
+      await sb.from('settings').update({value: jsonVal}).eq('store_id', STORE_ID).eq('key', key);
+    } else {
+      await sb.from('settings').insert({store_id: STORE_ID, key: key, value: jsonVal});
+    }
+  } catch(e) {}
+}
+
 async function loadTruckStock(owner) {
   var key = getTruckKey(owner);
+  try {
+    var res = await Promise.race([
+      sb.from('settings').select('value').eq('store_id', STORE_ID).eq('key', key).single(),
+      new Promise(function(_,rej){ setTimeout(function(){ rej(new Error('timeout')); }, 3000); })
+    ]);
+    if (res.data && res.data.value) {
+      var parsed = JSON.parse(res.data.value);
+      localStorage.setItem(key, res.data.value);
+      return parsed;
+    }
+  } catch(e) {}
   try { return JSON.parse(localStorage.getItem(key) || '{}'); } catch(e) { return {}; }
 }
 
@@ -4599,7 +4622,7 @@ async function _directTruckReturn(productId, boxes, cpb, truckUnits, name) {
     var truckKey = 'truck_stock_' + STORE_ID + '_admin';
     var truckMap = JSON.parse(localStorage.getItem(truckKey) || '{}');
     truckMap[productId] = Math.max(0, (parseFloat(truckMap[productId]||0)) - units);
-    localStorage.setItem(truckKey, JSON.stringify(truckMap));
+    await saveTruckStock(getCurrentTruckOwner(), truckMap);
     var p = (localCache['products']||[]).find(function(x){ return parseInt(x.id||x.product_id)===productId; });
     if (p) { p.stock = curStock + units; p.stock_quantity = curStock + units; }
     showToast('✅ Returned ' + boxes + ' boxes of ' + name + ' to warehouse!');
@@ -4678,10 +4701,10 @@ async function confirmTruckReturn() {
     var res = await sb.from('products').select('id,stock').eq('id', productId).single();
     var curStock = res.data ? parseFloat(res.data.stock||0) : 0;
     await sb.from('products').update({stock: curStock + units}).eq('id', productId);
-    var truckKey = 'truck_stock_' + STORE_ID + '_' + (getCurrentTruckOwner() || 'admin');
-    var truckMap = JSON.parse(localStorage.getItem(truckKey) || '{}');
+    var truckOwner = getCurrentTruckOwner();
+    var truckMap = await loadTruckStock(truckOwner);
     truckMap[productId] = Math.max(0, (parseFloat(truckMap[productId]||0)) - units);
-    localStorage.setItem(truckKey, JSON.stringify(truckMap));
+    await saveTruckStock(truckOwner, truckMap);
     var p = (localCache['products']||[]).find(function(x){ return parseInt(x.id||x.product_id)===productId; });
     if (p) { p.stock = curStock + units; p.stock_quantity = curStock + units; }
     showToast('✅ Returned ' + boxes + ' boxes to warehouse!');
