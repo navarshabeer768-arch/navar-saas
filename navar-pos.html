@@ -4942,14 +4942,23 @@ async function filterOrders(status) {
 function openOrderModal() {
   var list = document.getElementById('orders-list') || document.getElementById('ord-list');
   if (!list) return;
-  list.insertAdjacentHTML('afterbegin',
-    '<div class="card" id="new-order-form" style="padding:16px;margin-bottom:12px;border:2px solid var(--navy);">' +
-    '<div style="font-weight:700;margin-bottom:8px;">\u2795 New Pre-Order</div>' +
+  // Remove existing form if open
+  var existing = document.getElementById('new-order-form');
+  if (existing) { existing.remove(); return; }
+  // Build form with DOM (avoids quote-nesting issues)
+  var wrap = document.createElement('div');
+  wrap.className = 'card';
+  wrap.id = 'new-order-form';
+  wrap.style.cssText = 'padding:16px;margin-bottom:12px;border:2px solid var(--navy);';
+  wrap.innerHTML = '<div style="font-weight:700;margin-bottom:8px;">➕ New Pre-Order</div>' +
     '<input id="new-ord-name" class="form-input" placeholder="Customer name" style="margin-bottom:8px;">' +
     '<input id="new-ord-notes" class="form-input" placeholder="Notes / items" style="margin-bottom:8px;">' +
     '<div style="display:flex;gap:8px;">' +
-    '<button class="btn btn-outline btn-block" onclick="document.getElementById('new-order-form').remove()">Cancel</button>' +
-    '<button class="btn btn-primary btn-block" onclick="saveOrder()">Save</button></div></div>');
+      '<button class="btn btn-outline btn-block" id="new-ord-cancel">Cancel</button>' +
+      '<button class="btn btn-primary btn-block" onclick="saveOrder()">Save</button>' +
+    '</div>';
+  list.insertBefore(wrap, list.firstChild);
+  document.getElementById('new-ord-cancel').onclick = function() { wrap.remove(); };
 }
 
 function saveOrder() {
