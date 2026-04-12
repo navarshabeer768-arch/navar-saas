@@ -4320,7 +4320,7 @@ function printReport() {
     <div class="report-title">📊 ${tabName} — ${fmtDate(document.getElementById('rep-date-from')?.value||today())} to ${fmtDate(document.getElementById('rep-date-to')?.value||today())}</div>
     ${content.innerHTML}
     <div style="margin-top:20px;font-size:10px;color:#999;text-align:center;">Printed: ${new Date().toLocaleString('en-QA',{timeZone:'Asia/Qatar'})}</div>
-    </body></html>\`;
+    </body></html>`;
   const win = window.open('','_blank','width=900,height=700');
   if (!win) { showToast('Allow popups to print!'); return; }
   win.document.write(html); win.document.close();
