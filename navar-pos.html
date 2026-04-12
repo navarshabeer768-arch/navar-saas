@@ -2574,28 +2574,37 @@ async function completeOrder() {
       timeStr = qatarTime.toTimeString().slice(0,5);
     } catch(e) { timeStr = now.toTimeString().slice(0,5); }
     // Save invoice — only include columns that exist
+    // Build invoice matching actual Supabase schema
+    const _salesmanName = isAdmin() ? 'Admin' : (localStorage.getItem('employee_name') || 'Employee');
     const invoiceData = {
-      customer_id: custId,
+      store_id: STORE_ID,
+      customer_id: custId || null,
+      customer_name: custId ? null : null, // will be set below
       date: dateStr,
-      total_amount: total,
+      subtotal: total,
+      discount: parseFloat(discount)||0,
+      tax: 0,
+      total: total,
       payment_type: payType,
-      discount: discount,
+      status: 'completed',
+      salesman: _salesmanName,
+      items: JSON.stringify(cart.map(function(item){ return {
+        product_id: item.product_id||item.id,
+        name: item.name,
+        qty: item.totalBags||item.quantity||1,
+        price: item.basePrice||item.price||0,
+        total: item.total||0
+      }; })),
       created_at: now.toISOString()
     };
-    // Try to add extra columns (may not exist in old DB)
-    try { invoiceData.time = timeStr; } catch(e){}
-    try { if (chequeNum) invoiceData.cheque_number = chequeNum; } catch(e){}
-    try { if (chequeDate) invoiceData.cheque_date = chequeDate; } catch(e){}
-    // Set salesman name
-    const _salesmanName = isAdmin() ? 'Admin' : (localStorage.getItem('employee_name') || 'Employee');
-    invoiceData.salesman_name = _salesmanName;
 
     // Insert invoice — try with salesman_name, fallback without if column missing
     let invId = null;
     try {
       // Strip columns not in Supabase schema before insert
       const cleanInvoiceData = {...invoiceData};
-      ['cash_paid','change_amount','salesman','invoice_items','time','cheque_number','cheque_date','salesman_name'].forEach(c => delete cleanInvoiceData[c]);
+      // Strip any leftover invalid columns
+      ['cash_paid','change_amount','invoice_items','time','cheque_number','cheque_date','salesman_name','total_amount'].forEach(c => delete cleanInvoiceData[c]);
       const result = await Promise.race([
         sb.from('invoices').insert(cleanInvoiceData).select().single(),
         new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 6000))
@@ -2606,7 +2615,7 @@ async function completeOrder() {
           delete dataWithout.salesman_name;
           const result2 = await sb.from('invoices').insert(dataWithout).select().single();
           if (result2?.error) throw new Error(result2.error.message);
-          invId = result2?.data?.invoice_id;
+          invId = result2?.data?.id || result2?.data?.invoice_id;
           if (result2?.data) {
             if (!localCache['invoices']) localCache['invoices'] = [];
             localCache['invoices'].push(JSON.parse(JSON.stringify(result2.data)));
@@ -4092,10 +4101,11 @@ async function saveExpense() {
   const amount = parseFloat(document.getElementById('exp-amount').value);
   if (!amount || amount <= 0) { showToast('⚠️ Enter valid amount!'); return; }
   await dbAdd('expenses', {
+    store_id: STORE_ID,
     category: document.getElementById('exp-cat').value,
+    description: document.getElementById('exp-notes') ? document.getElementById('exp-notes').value : '',
     amount,
     date: document.getElementById('exp-date').value,
-    notes: document.getElementById('exp-notes').value,
     created_at: new Date().toISOString()
   });
   closeModal('expense-modal');
@@ -4680,5 +4690,126 @@ async function confirmTruckReturn() {
   } catch(e) { showToast('❌ ' + e.message); }
 }
 
+
+// ── Targets screen ────────────────────────────────────────────
+async function renderTargets(mode) {
+  mode = mode || 'daily';
+  var container = document.getElementById('targets-content') || document.getElementById('targets-list');
+  if (!container) return;
+  var targets = JSON.parse(localStorage.getItem('sales_targets_' + STORE_ID) || '{}');
+  var today_str = today();
+  var invoices = await dbGetAll('invoices');
+  var todayInv = invoices.filter(function(i){ return i.date === today_str; });
+  var todaySales = todayInv.reduce(function(a,i){ return a + parseFloat(i.total||i.total_amount||0); }, 0);
+  var target = parseFloat(targets[mode] || 1000);
+  var pct = Math.min(100, (todaySales / target * 100)).toFixed(1);
+  container.innerHTML = '<div class="card" style="padding:20px;text-align:center;">' +
+    '<div style="font-size:2rem;font-weight:900;color:var(--green);">QR ' + todaySales.toFixed(2) + '</div>' +
+    '<div style="color:var(--text2);margin:8px 0;">of QR ' + target.toFixed(2) + ' target</div>' +
+    '<div style="background:var(--bg2);border-radius:20px;height:12px;margin:12px 0;">' +
+      '<div style="background:var(--green);height:12px;border-radius:20px;width:' + pct + '%;transition:.3s;"></div>' +
+    '</div>' +
+    '<div style="font-size:1.2rem;font-weight:700;">' + pct + '% achieved</div>' +
+    '</div>' +
+    '<div class="card" style="padding:16px;margin-top:12px;">' +
+    '<div style="font-weight:700;margin-bottom:8px;">Set Target</div>' +
+    '<div style="display:flex;gap:8px;align-items:center;">' +
+      '<input type="number" id="target-input" class="form-input" value="' + target + '" placeholder="Target amount">' +
+      '<button class="btn btn-primary" onclick="saveTargetCurrent()">Save</button>' +
+    '</div></div>';
+}
+
+function saveTarget(mode) {
+  var val = parseFloat(document.getElementById('target-input')?.value || 0);
+  if (!val) return;
+  var targets = JSON.parse(localStorage.getItem('sales_targets_' + STORE_ID) || '{}');
+  targets[mode] = val;
+  localStorage.setItem('sales_targets_' + STORE_ID, JSON.stringify(targets));
+  showToast('✅ Target saved!');
+  renderTargets(mode);
+}
+
+// ── Collection/Handover screen ────────────────────────────────
+async function renderCollection() {
+  var container = document.getElementById('collection-list') || document.getElementById('col-list');
+  if (!container) return;
+  var dateEl = document.getElementById('col-date');
+  var d = dateEl ? dateEl.value : today();
+  var invoices = await dbGetAll('invoices');
+  var dayInv = invoices.filter(function(i){ return i.date === d; });
+  var cash = dayInv.filter(function(i){ return i.payment_type === 'cash'; })
+                   .reduce(function(a,i){ return a + parseFloat(i.total||i.total_amount||0); }, 0);
+  var credit = dayInv.filter(function(i){ return i.payment_type === 'credit'; })
+                     .reduce(function(a,i){ return a + parseFloat(i.total||i.total_amount||0); }, 0);
+  var total = cash + credit;
+  container.innerHTML = '<div class="stat-cards" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;">' +
+    '<div class="stat-card"><div class="stat-val color-green">QR ' + cash.toFixed(2) + '</div><div class="stat-lbl">Cash</div></div>' +
+    '<div class="stat-card"><div class="stat-val color-red">QR ' + credit.toFixed(2) + '</div><div class="stat-lbl">Credit</div></div>' +
+    '<div class="stat-card"><div class="stat-val">QR ' + total.toFixed(2) + '</div><div class="stat-lbl">Total</div></div>' +
+    '</div>' +
+    '<div class="card"><div class="card-title">Invoices — ' + d + '</div>' +
+    (dayInv.length ? dayInv.map(function(inv){
+      return '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--bg2);">' +
+        '<span>#' + (inv.id||inv.invoice_id) + ' ' + (inv.payment_type||'cash') + '</span>' +
+        '<span style="font-weight:700;">QR ' + parseFloat(inv.total||inv.total_amount||0).toFixed(2) + '</span></div>';
+    }).join('') : '<div style="text-align:center;padding:20px;color:var(--text2);">No invoices today</div>') +
+    '</div>';
+}
+
+async function loadHandover() {
+  var container = document.getElementById('handover-content') || document.getElementById('handover-list');
+  if (!container) return;
+  var d = today();
+  var invoices = await dbGetAll('invoices');
+  var dayInv = invoices.filter(function(i){ return i.date === d; });
+  var cashTotal = dayInv.filter(function(i){ return i.payment_type==='cash'; })
+    .reduce(function(a,i){ return a+parseFloat(i.total||i.total_amount||0); }, 0);
+  container.innerHTML = '<div class="card" style="padding:20px;">' +
+    '<div style="font-size:1.2rem;font-weight:700;margin-bottom:16px;">Daily Cash Handover — ' + fmtDate(d) + '</div>' +
+    '<div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--bg2);">' +
+      '<span>Cash Sales</span><span style="font-weight:800;color:var(--green);">QR ' + cashTotal.toFixed(2) + '</span>' +
+    '</div>' +
+    '<div style="display:flex;justify-content:space-between;padding:12px 0;font-size:1.1rem;font-weight:900;">' +
+      '<span>Total to Hand Over</span><span style="color:var(--green);">QR ' + cashTotal.toFixed(2) + '</span>' +
+    '</div>' +
+    '<button class="btn btn-primary btn-block" onclick="confirmHandover(' + cashTotal + ')" style="margin-top:16px;">✅ Confirm Handover</button>' +
+    '</div>';
+}
+
+function confirmHandover(amount) {
+  if (!confirm('Confirm handover of QR ' + amount.toFixed(2) + '?')) return;
+  logAudit('Handover', 'QR ' + amount.toFixed(2) + ' handed over');
+  showToast('✅ Handover confirmed: QR ' + amount.toFixed(2));
+}
+
+// ── Stock count rendering ─────────────────────────────────────
+async function loadStockCountData(mode) {
+  var container = document.getElementById('sc-list') || document.getElementById('stock-count-content');
+  if (!container) { loadInventory(); return; }
+  delete localCache['products'];
+  var products = await dbGetAll('products');
+  var truckStock = getMyTruckQtyMapSync();
+  container.innerHTML = products.map(function(p) {
+    var cpb = getCasesPerBox(p) || 4;
+    var wh = parseFloat(p.stock||p.stock_quantity||0);
+    var truck = parseFloat(truckStock[p.id||p.product_id]||0);
+    var qty = mode==='truck' ? truck : mode==='warehouse' ? wh : wh+truck;
+    var boxes = Math.floor(qty/cpb);
+    var rem = Math.round(qty%cpb);
+    return '<div class="card" style="padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">' +
+      '<div><div style="font-weight:700;">' + p.name + '</div>' +
+        '<div style="font-size:.75rem;color:var(--text2);">' + cpb + ' units/box</div></div>' +
+      '<div style="text-align:right;">' +
+        '<div style="font-size:1.2rem;font-weight:800;color:var(--navy);">' + boxes + ' boxes</div>' +
+        (rem > 0 ? '<div style="font-size:.75rem;color:var(--text2);">+ ' + rem + ' units</div>' : '') +
+      '</div></div>';
+  }).join('') || '<div style="text-align:center;padding:24px;color:var(--text2);">No products</div>';
+}
+
+
+function saveTargetCurrent() {
+  var mode = (document.querySelector("#targets-screen .chip.active") || {}).dataset?.mode || 'daily';
+  saveTarget(mode);
+}
 </script>
     </body></html>
