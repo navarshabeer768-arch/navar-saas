@@ -1045,16 +1045,16 @@ input[type=number]{-moz-appearance:textfield;}
         <input type="text" class="form-input" id="set-email" value="fairway.fmcg@gmail.com">
       </div>
       <div class="form-group">
-        <label class="form-label">Company Name (Arabic) اسم الشركة</label>
-        <input type="text" class="form-input" id="set-company-ar" placeholder="مثال: نيو فيرواي ترادينغ" dir="rtl" style="font-family:Cairo,sans-serif;">
+        <label class="form-label">Arabic Company Name / اسم الشركة</label>
+        <input type="text" class="form-input" id="set-company-ar" placeholder="نيو فيرواي ترادينغ" dir="rtl" style="font-family:Cairo,sans-serif;">
       </div>
       <div class="form-group">
         <label class="form-label">Company Logo</label>
-        <div id="set-logo-upload-area" style="border:2px dashed var(--border);border-radius:10px;padding:20px;text-align:center;cursor:pointer;background:var(--surface2);" onclick="document.getElementById('set-logo-input').click()">
-          <div style="font-size:2.5rem;">🖼️</div>
-          <div style="font-size:.85rem;color:var(--text2);margin-top:6px;">Tap to upload logo (PNG/JPG, max 500KB)</div>
+        <div id="set-logo-upload-area" style="border:2px dashed var(--border);border-radius:10px;padding:18px;text-align:center;cursor:pointer;background:var(--surface2);" onclick="document.getElementById('set-logo-input').click()">
+          <div style="font-size:2rem;">🖼️</div>
+          <div style="font-size:.82rem;color:var(--text2);margin-top:4px;">Tap to upload logo (PNG/JPG max 500KB)</div>
         </div>
-        <img id="set-logo-preview" src="" style="display:none;max-height:90px;border-radius:10px;margin-top:10px;border:2px solid var(--border);padding:4px;" alt="Logo">
+        <img id="set-logo-preview" src="" style="display:none;max-height:80px;border-radius:10px;margin-top:8px;border:2px solid var(--border);" alt="Logo">
         <input type="file" id="set-logo-input" accept="image/*" style="display:none;" onchange="handleLogoUpload(event)">
         <button type="button" class="btn btn-outline btn-sm" style="margin-top:6px;display:none;width:100%;" id="set-logo-remove" onclick="removeLogoPreview()">✕ Remove Logo</button>
       </div>
@@ -1476,7 +1476,7 @@ input[type=number]{-moz-appearance:textfield;}
   <div style="position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:2px solid var(--border);padding:10px 16px;display:flex;gap:8px;z-index:9001;">
     <button onclick="closeInvoiceViewer()" class="btn btn-outline btn-block" style="flex:1;">✕ Close</button>
     <button onclick="window.print()" class="btn btn-primary btn-block" style="flex:1;">🖨️ Print</button>
-    <button onclick="_shareInvoicePDF()" class="btn btn-outline btn-block" style="flex:1;">📤 Share PDF</button>
+    <button onclick="_shareInvoicePDF()" class="btn btn-outline btn-block" style="flex:1;">📤 PDF</button>
   </div>
 </div>
 
@@ -2202,38 +2202,23 @@ async function loadSettings() {
   const keys = ['company','address','phone1','phone2','email'];
   for (const k of keys) {
     const row = await dbGet('settings', k);
-    if (row) { const el = document.getElementById('set-' + k); if(el) el.value = row.value; }
+    if (row) { const el = document.getElementById('set-'+k); if(el) el.value = row.value; }
   }
-  // Load Arabic name
-  const arRow = await dbGet('settings', 'company_ar');
-  if (arRow && arRow.value) { const el = document.getElementById('set-company-ar'); if(el) el.value = arRow.value; }
-  // Load logo
-  const logoRow = await dbGet('settings', 'logo');
-  if (logoRow && logoRow.value) {
+  const arRow = await dbGet('settings','company_ar');
+  if (arRow&&arRow.value){ const el=document.getElementById('set-company-ar'); if(el) el.value=arRow.value; }
+  const logoRow = await dbGet('settings','logo');
+  if (logoRow&&logoRow.value) {
     window._LOGO = logoRow.value;
-    const prev = document.getElementById('set-logo-preview');
-    if (prev) { prev.src = logoRow.value; prev.style.display = 'block'; }
-    const area = document.getElementById('set-logo-upload-area');
-    if (area) area.style.display = 'none';
-    const rb = document.getElementById('set-logo-remove');
-    if (rb) rb.style.display = '';
+    const prev=document.getElementById('set-logo-preview'); if(prev){prev.src=logoRow.value;prev.style.display='block';}
+    const area=document.getElementById('set-logo-upload-area'); if(area)area.style.display='none';
+    const rb=document.getElementById('set-logo-remove'); if(rb)rb.style.display='';
   }
 }
 async function saveSettings() {
   const keys = ['company','address','phone1','phone2','email'];
-  for (const k of keys) {
-    const el = document.getElementById('set-' + k);
-    if (el) await dbPut('settings', { key: k, value: el.value });
-  }
-  // Save Arabic name
-  const arEl = document.getElementById('set-company-ar');
-  if (arEl) await dbPut('settings', { key: 'company_ar', value: arEl.value });
-  // Save logo if pending
-  if (window._LOGO_PENDING) {
-    await dbPut('settings', { key: 'logo', value: window._LOGO_PENDING });
-    window._LOGO = window._LOGO_PENDING;
-    delete window._LOGO_PENDING;
-  }
+  for (const k of keys) { const el=document.getElementById('set-'+k); if(el) await dbPut('settings',{key:k,value:el.value}); }
+  const arEl=document.getElementById('set-company-ar'); if(arEl) await dbPut('settings',{key:'company_ar',value:arEl.value});
+  if (window._LOGO_PENDING) { await dbPut('settings',{key:'logo',value:window._LOGO_PENDING}); window._LOGO=window._LOGO_PENDING; delete window._LOGO_PENDING; }
   await loadSettingsObj();
   showToast('✅ Settings saved!');
 }
@@ -2248,12 +2233,7 @@ async function changePin() {
 async function loadSettingsObj() {
   const keys = ['company','address','phone1','phone2','email','company_ar','logo'];
   const obj = {};
-  for (const k of keys) {
-    try {
-      const row = await dbGet('settings', k);
-      if (row && row.value !== undefined) obj[k] = row.value;
-    } catch(e) {}
-  }
+  for (const k of keys) { try { const r=await dbGet('settings',k); if(r&&r.value!==undefined) obj[k]=r.value; } catch(e){} }
   settings = obj;
   if (obj.logo) window._LOGO = obj.logo;
   return obj;
@@ -3081,7 +3061,7 @@ async function viewCustomer(id) {
   const invoices = await dbGetByIndex('invoices', 'customer_id', id);
   const payments = await dbGetByIndex('credit_payments', 'customer_id', id);
   document.getElementById('cust-detail-name').textContent = '👤 ' + cust.name;
-  const totalPurchases = invoices.reduce((a,i)=>a+i.total_amount,0);
+  const totalPurchases = invoices.reduce((a,i)=>a+parseFloat(i.total||i.total_amount||0),0);
   let html = `<div class="card">
     <div class="summary-row"><span>📞 Phone:</span><span>${cust.phone||'-'}</span></div>
     <div class="summary-row"><span>👤 Contact:</span><span>${cust.contact_person||'-'}</span></div>
@@ -3096,7 +3076,7 @@ async function viewCustomer(id) {
     invoices.sort((a,b)=>b.invoice_id-a.invoice_id).slice(0,5).forEach(inv => {
       html += `<div style="display:flex;justify-content:space-between;padding:8px;background:var(--surface2);border-radius:8px;margin-bottom:4px;font-size:.85rem;">
         <span>#${inv.invoice_id} · ${fmtDate(inv.date)}</span>
-        <span><strong>${fmtMoney(inv.total||inv.total_amount)}</strong> · <span class="badge badge-${inv.payment_type==='cash'?'green':inv.payment_type==='credit'?'red':'gold'}">${inv.payment_type}</span></span>
+        <span><strong>${fmtMoney(inv.total_amount)}</strong> · <span class="badge badge-${inv.payment_type==='cash'?'green':inv.payment_type==='credit'?'red':'gold'}">${inv.payment_type}</span></span>
       </div>`;
     });
   }
@@ -3193,8 +3173,8 @@ async function loadInvoices() {
   // Filter by invoice number
   if (searchNum) {
     invoices = invoices.filter(inv =>
-      String(inv.id||inv.invoice_id).includes(searchNum) ||
-      String(inv.id||inv.invoice_id).padStart(4,'0').includes(searchNum)
+      String(inv.invoice_id).includes(searchNum) ||
+      String(inv.invoice_id).padStart(4,'0').includes(searchNum)
     );
   }
   const list = document.getElementById('invoices-list');
@@ -3203,7 +3183,7 @@ async function loadInvoices() {
     return;
   }
   invoices.sort((a,b)=>b.invoice_id-a.invoice_id);
-  const total = invoices.reduce((a,i)=>a+i.total_amount,0);
+  const total = invoices.reduce((a,i)=>a+parseFloat(i.total||i.total_amount||0),0);
   // Summary by employee (admin all view)
   let summaryHtml = '';
   if (isAdmin() && !empFilter) {
@@ -3238,7 +3218,7 @@ async function loadInvoices() {
           </div>
         </div>
         <div class="text-right">
-          <div style="font-size:1.1rem;font-weight:800;color:var(--navy);">${fmtMoney(inv.total_amount)}</div>
+          <div style="font-size:1.1rem;font-weight:800;color:var(--navy);">${fmtMoney(inv.total||inv.total_amount)}</div>
           <span class="badge badge-${inv.payment_type==='cash'?'green':inv.payment_type==='credit'?'red':'gold'}">${inv.payment_type}</span>
         </div>
       </div>
@@ -4469,7 +4449,7 @@ async function saveTruckStock(owner, stockMap) {
   localStorage.setItem(key, v);
   try {
     var ex = await sb.from('settings').select('id').eq('store_id',STORE_ID).eq('key',key).single();
-    if (ex.data) await sb.from('settings').update({value:v}).eq('store_id',STORE_ID).eq('key',key);
+    if(ex.data) await sb.from('settings').update({value:v}).eq('store_id',STORE_ID).eq('key',key);
     else await sb.from('settings').insert({store_id:STORE_ID,key:key,value:v});
   } catch(e) {}
 }
@@ -4557,17 +4537,14 @@ function loadCollection() {
 }
 
 function loadStockCount(mode) {
-  mode = mode || 'truck';
-  window.currentStockCountMode = mode;
-  ['truck','warehouse','both','history'].forEach(function(t) {
-    var btn = document.getElementById('sc-tab-' + t);
-    if (btn) btn.classList.toggle('active', t === mode);
-  });
+  mode = mode||'truck'; window.currentStockCountMode = mode;
+  ['truck','warehouse','both','history'].forEach(function(t){var b=document.getElementById('sc-tab-'+t);if(b)b.classList.toggle('active',t===mode);});
   loadStockCountData(mode);
 }
 
-function openHandoverScreen() {
-  if (typeof loadHandover === 'function') loadHandover();
+async function openHandoverScreen() {
+  showScreen('handover-screen');
+  if (typeof loadHandover === 'function') await loadHandover();
 }
 
 function loadTargets() {
@@ -4715,7 +4692,7 @@ function updateHomeSummary() {
     if (dateEl) dateEl.textContent = fmtDate(t) + ' — Qatar Time';
     // Load today sales from cache
     var invoices = (localCache['invoices'] || []).filter(function(i){ return i.date === t; });
-    var totalSales = invoices.reduce(function(a,i){ return a + parseFloat(i.total_amount||0); }, 0);
+    var totalSales = invoices.reduce(function(a,i){ return a + parseFloat(i.total||i.total_amount||0); }, 0);
     var salesEl = document.getElementById('hs-sales');
     var invEl = document.getElementById('hs-invoices');
     var profitEl = document.getElementById('hs-profit');
@@ -4817,39 +4794,28 @@ async function renderCollection() {
 }
 
 async function loadHandover() {
-  var d = today();
-  var invoices = await dbGetAll('invoices');
-  var dayInv = invoices.filter(function(i){ return i.date === d; });
-  var cashTotal = dayInv.filter(function(i){ return i.payment_type==='cash'; })
-    .reduce(function(a,i){ return a + parseFloat(i.total||i.total_amount||0); }, 0);
-  var creditTotal = dayInv.filter(function(i){ return i.payment_type==='credit'; })
-    .reduce(function(a,i){ return a + parseFloat(i.total||i.total_amount||0); }, 0);
-  var totalSales = dayInv.reduce(function(a,i){ return a + parseFloat(i.total||i.total_amount||0); }, 0);
-  var summaryEl = document.getElementById('handover-emp-summary');
-  if (summaryEl) {
-    summaryEl.innerHTML =
-      '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">' +
-        '<span>Total Sales</span><span style="font-weight:700;">QR ' + totalSales.toFixed(2) + '</span>' +
-      '</div>' +
-      '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">' +
-        '<span>Cash Sales</span><span style="font-weight:800;color:var(--green);">QR ' + cashTotal.toFixed(2) + '</span>' +
-      '</div>' +
-      '<div style="display:flex;justify-content:space-between;padding:8px 0;">' +
-        '<span>Credit Sales</span><span style="font-weight:700;color:var(--red);">QR ' + creditTotal.toFixed(2) + '</span>' +
-      '</div>';
+  var d=today();
+  var invoices=await dbGetAll('invoices');
+  var dayInv=invoices.filter(function(i){return i.date===d;});
+  var cashTotal=dayInv.filter(function(i){return i.payment_type==='cash';}).reduce(function(a,i){return a+parseFloat(i.total||i.total_amount||0);},0);
+  var creditTotal=dayInv.filter(function(i){return i.payment_type==='credit';}).reduce(function(a,i){return a+parseFloat(i.total||i.total_amount||0);},0);
+  var totalSales=dayInv.reduce(function(a,i){return a+parseFloat(i.total||i.total_amount||0);},0);
+  var summaryEl=document.getElementById('handover-emp-summary');
+  if(summaryEl){summaryEl.innerHTML=
+    '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);"><span>Total Sales</span><span style="font-weight:700;">QR '+totalSales.toFixed(2)+'</span></div>'+
+    '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);"><span>Cash Sales</span><span style="font-weight:800;color:var(--green);">QR '+cashTotal.toFixed(2)+'</span></div>'+
+    '<div style="display:flex;justify-content:space-between;padding:8px 0;"><span>Credit Sales</span><span style="font-weight:700;color:var(--red);">QR '+creditTotal.toFixed(2)+'</span></div>';
   }
-  var amountEl = document.getElementById('handover-amount');
-  if (amountEl && !amountEl.value) amountEl.value = cashTotal.toFixed(2);
-  var empName = localStorage.getItem('employee_name') || 'Employee';
-  var histEl = document.getElementById('handover-history-emp');
-  if (histEl) {
-    var ho = JSON.parse(localStorage.getItem('handovers_' + STORE_ID) || '[]');
-    var todayHO = (isAdmin() ? ho : ho.filter(function(h){ return h.employee===empName; })).filter(function(h){ return h.date===d; });
-    histEl.innerHTML = todayHO.length
-      ? '<div class="card" style="margin-top:8px;padding:12px;"><div style="font-weight:700;margin-bottom:8px;">Submissions Today</div>' +
-        todayHO.map(function(h){ return '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:.85rem;"><span>'+h.employee+' '+( h.time||'')+'</span><span style="font-weight:700;color:var(--green);">QR '+parseFloat(h.amount||0).toFixed(2)+'</span></div>'; }).join('') +
-        '</div>'
-      : '';
+  var amtEl=document.getElementById('handover-amount');
+  if(amtEl&&!amtEl.value) amtEl.value=cashTotal.toFixed(2);
+  var empName=localStorage.getItem('employee_name')||'Employee';
+  var histEl=document.getElementById('handover-history-emp');
+  if(histEl){
+    var ho=JSON.parse(localStorage.getItem('handovers_'+STORE_ID)||'[]');
+    var todayHO=(isAdmin()?ho:ho.filter(function(h){return h.employee===empName;})).filter(function(h){return h.date===d;});
+    histEl.innerHTML=todayHO.length?'<div class="card" style="margin-top:8px;padding:12px;"><div style="font-weight:700;margin-bottom:8px;">Submissions Today</div>'+
+      todayHO.map(function(h){return '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:.85rem;"><span>'+h.employee+' '+(h.time||'')+'</span><span style="font-weight:700;color:var(--green);">QR '+parseFloat(h.amount||0).toFixed(2)+'</span></div>';}).join('')+
+      '</div>':'';
   }
 }
 
@@ -4861,7 +4827,7 @@ function confirmHandover(amount) {
 
 // ── Stock count rendering ─────────────────────────────────────
 async function loadStockCountData(mode) {
-  var container = document.getElementById('stockcount-list') || document.getElementById('sc-list') || document.getElementById('stock-count-content');
+  var container = document.getElementById('stockcount-list')||document.getElementById('sc-list')||document.getElementById('stock-count-content');
   if (!container) return;
   delete localCache['products'];
   var products = await dbGetAll('products');
@@ -4890,95 +4856,74 @@ function saveTargetCurrent() {
 }
 
 
-// ════════════════════════════════════════════════════════
-// showInvoiceViewer / closeInvoiceViewer / share PDF
-// ════════════════════════════════════════════════════════
+// ════════════════════════════════
+// INVOICE VIEWER
+// ════════════════════════════════
 function showInvoiceViewer(html, type) {
-  window._invHTML = html; window._invType = type||'a4';
-  var content = document.getElementById('inv-viewer-content');
-  var overlay = document.getElementById('inv-viewer-overlay');
-  if (content && overlay) {
-    content.innerHTML = html;
-    overlay.style.display = 'block';
-    overlay.scrollTop = 0;
-    document.body.style.overflow = 'hidden';
-  } else {
-    var pa = document.getElementById('print-area');
-    if (pa) { pa.innerHTML = html; window.print(); setTimeout(function(){ pa.innerHTML=''; },1500); }
-  }
+  window._invHTML=html; window._invType=type||'a4';
+  var content=document.getElementById('inv-viewer-content');
+  var overlay=document.getElementById('inv-viewer-overlay');
+  if(content&&overlay){content.innerHTML=html;overlay.style.display='block';overlay.scrollTop=0;document.body.style.overflow='hidden';}
+  else{var pa=document.getElementById('print-area');if(pa){pa.innerHTML=html;window.print();setTimeout(function(){pa.innerHTML='';},1500);}}
 }
-function closeInvoiceViewer() {
-  var o = document.getElementById('inv-viewer-overlay');
-  if (o) o.style.display = 'none';
-  document.body.style.overflow = '';
+function closeInvoiceViewer(){
+  var o=document.getElementById('inv-viewer-overlay');if(o)o.style.display='none';
+  document.body.style.overflow='';
 }
-async function _shareInvoicePDF() {
-  await _sharePDFFromHTML(window._invHTML||'', window._invType==='thermal');
-}
-async function _sharePDFFromHTML(html, isThermal) {
-  if (!html) { showToast('Nothing to share'); return; }
-  if (typeof html2pdf !== 'undefined') {
-    try {
-      var div = document.createElement('div'); div.innerHTML = html; document.body.appendChild(div);
-      var blob = await html2pdf().set({
-        margin: isThermal?[2,2,2,2]:[8,8,8,8], filename:'invoice_'+today()+'.pdf',
-        image:{type:'jpeg',quality:.95}, html2canvas:{scale:2,useCORS:true},
-        jsPDF:{unit:'mm',format:isThermal?[80,200]:'a4',orientation:'portrait'}
-      }).from(div).output('blob');
+async function _shareInvoicePDF(){await _sharePDFFromHTML(window._invHTML||'',window._invType==='thermal');}
+async function _sharePDFFromHTML(html,isThermal){
+  if(!html){showToast('Nothing to share');return;}
+  if(typeof html2pdf!=='undefined'){
+    try{
+      var div=document.createElement('div');div.innerHTML=html;document.body.appendChild(div);
+      var blob=await html2pdf().set({margin:isThermal?[2,2,2,2]:[8,8,8,8],filename:'invoice_'+today()+'.pdf',image:{type:'jpeg',quality:.95},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:'mm',format:isThermal?[80,200]:'a4',orientation:'portrait'}}).from(div).output('blob');
       document.body.removeChild(div);
-      var file = new File([blob],'invoice_'+today()+'.pdf',{type:'application/pdf'});
-      if (navigator.share && navigator.canShare && navigator.canShare({files:[file]})) {
-        await navigator.share({files:[file],title:'Invoice'});
-      } else {
-        var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='invoice_'+today()+'.pdf';a.click();
-        setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
-      }
+      var file=new File([blob],'invoice_'+today()+'.pdf',{type:'application/pdf'});
+      if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'Invoice'});}
+      else{var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='invoice_'+today()+'.pdf';a.click();}
       return;
-    } catch(e) { console.warn('PDF share:', e); }
+    }catch(e){}
   }
-  var pa = document.getElementById('print-area');
-  if (pa) { pa.innerHTML = html; window.print(); setTimeout(function(){ pa.innerHTML=''; },1500); }
+  var pa=document.getElementById('print-area');if(pa){pa.innerHTML=html;window.print();setTimeout(function(){pa.innerHTML='';},1500);}
 }
 
-// ════════════════════════════════════════════════════════
-// PRINT FUNCTIONS — reads from settings global
-// ════════════════════════════════════════════════════════
-function _getS() {
-  var s = settings||{};
-  function ls(k){ try{ var r=localStorage.getItem('pos_setting_'+STORE_ID+'_'+k); return r?JSON.parse(r).value||'':''; }catch(e){return '';} }
-  return {
-    company:   s.company||ls('company')||'NEW FAIR WAY TRADING',
-    companyAr: s.company_ar||ls('company_ar')||'\u0646\u064a\u0648 \u0641\u064a\u0631\u0648\u0627\u064a \u062a\u0631\u064a\u062f\u064a\u0646\u063a',
-    address:   s.address||ls('address')||'Doha, Qatar',
-    phone1:    s.phone1||ls('phone1')||'',
-    phone2:    s.phone2||ls('phone2')||'',
-    logo:      window._LOGO||s.logo||''
-  };
+// ════════════════════════════════
+// PRINT: A4 + THERMAL
+// ════════════════════════════════
+function _getS(){
+  var s=settings||{};
+  function ls(k){try{var r=localStorage.getItem('pos_setting_'+STORE_ID+'_'+k);return r?JSON.parse(r).value||'':'';}catch(e){return '';}}
+  return{company:s.company||ls('company')||'NEW FAIR WAY TRADING',companyAr:s.company_ar||ls('company_ar')||'\u0646\u064a\u0648 \u0641\u064a\u0631\u0648\u0627\u064a \u062a\u0631\u064a\u062f\u064a\u0646\u063a',address:s.address||ls('address')||'Doha, Qatar',phone1:s.phone1||ls('phone1')||'',phone2:s.phone2||ls('phone2')||'',logo:window._LOGO||s.logo||''};
 }
-
-function printA4Invoice(inv, items, customer, prodMap) {
-  var s = _getS();
-  var invId = inv.invoice_id||inv.id||'----';
-  var logoHtml = s.logo
-    ? '<img src="'+s.logo+'" onerror="this.style.display=\'none\'" width="68" height="68" style="border-radius:50%;object-fit:cover;display:block;" alt="">'
-    : '<div style="width:68px;height:68px;border:3px solid #1a237e;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.8rem;font-weight:900;color:#1a237e;">'+(s.company[0]||'N')+'</div>';
-  var payLabel = {cash:'CASH',credit:'CREDIT \u0622\u062c\u0644',partial:'PARTIAL \u062c\u0632\u0626\u064a',cheque:'CHEQUE \u0634\u064a\u0643'};
-  var sub = 0;
-  var rows = (items||[]).map(function(it){
-    var p = prodMap?(prodMap[it.product_id]||prodMap[String(it.product_id)]):null;
+function _buildRows(items,prodMap){
+  var sub=0;
+  var rows=(items||[]).map(function(it){
+    var p=prodMap?(prodMap[it.product_id]||prodMap[String(it.product_id)]):null;
     var name=it.name||(p&&p.name)||'-';
     var cpb=(p&&getCasesPerBox(p))||it.bags_per_box||4;
-    var qty=it.quantity||0; var boxes=Math.floor(qty/cpb); var rem=qty%cpb;
-    var remStr=rem>0?'+'+rem+'bg':'';
-    var qtyStr=boxes>0?(boxes+'bx'+remStr):(qty+'bg');
-    var price=parseFloat(it.price||0); var total=parseFloat(it.total||(qty*price)||0);
+    var qty=it.quantity||0;var boxes=Math.floor(qty/cpb);var rem=qty%cpb;
+    var qtyStr=boxes>0?(boxes+'bx'+(rem>0?'+'+rem+'bg':'')):(qty+'bg');
+    var price=parseFloat(it.price||0);var total=parseFloat(it.total||(qty*price)||0);
     var foc=it.is_foc==1||it.is_foc===true;
-    if(!foc) sub+=total;
+    if(!foc)sub+=total;
+    return {name:name,qtyStr:qtyStr,price:price,total:total,foc:foc,sub:sub};
+  });
+  return{rows:rows,sub:sub};
+}
+
+function printA4Invoice(inv,items,customer,prodMap){
+  var s=_getS();
+  var invId=inv.invoice_id||inv.id||'----';
+  var logoHtml=s.logo?'<img src="'+s.logo+'" onerror="this.style.display=\'none\'" width="68" height="68" style="border-radius:50%;object-fit:cover;display:block;" alt="">':
+    '<div style="width:68px;height:68px;border:3px solid #1a237e;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.8rem;font-weight:900;color:#1a237e;">'+(s.company[0]||'N')+'</div>';
+  var payLabel={cash:'CASH',credit:'CREDIT \u0622\u062c\u0644',partial:'PARTIAL \u062c\u0632\u0626\u064a',cheque:'CHEQUE \u0634\u064a\u0643'};
+  var rd=_buildRows(items,prodMap);var sub=rd.sub;
+  var rowsHtml=rd.rows.map(function(r){
     return '<tr style="border-bottom:1px solid #eee;">'
-      +'<td style="padding:6px 8px;font-size:12px;">'+name+(foc?' <span style="background:#e8f5e9;color:#2e7d32;padding:1px 4px;border-radius:3px;font-size:9px;">FOC</span>':'')+'</td>'
-      +'<td style="padding:6px 8px;font-size:12px;text-align:center;">'+qtyStr+'</td>'
-      +'<td style="padding:6px 8px;font-size:12px;text-align:right;">'+(foc?'FREE':'QR '+price.toFixed(3))+'</td>'
-      +'<td style="padding:6px 8px;font-size:12px;text-align:right;font-weight:700;">'+(foc?'FREE':'QR '+total.toFixed(3))+'</td></tr>';
+      +'<td style="padding:6px 8px;font-size:12px;">'+r.name+(r.foc?' <span style="background:#e8f5e9;color:#2e7d32;padding:1px 4px;border-radius:3px;font-size:9px;">FOC</span>':'')+'</td>'
+      +'<td style="padding:6px 8px;font-size:12px;text-align:center;">'+r.qtyStr+'</td>'
+      +'<td style="padding:6px 8px;font-size:12px;text-align:right;">'+(r.foc?'FREE':'QR '+r.price.toFixed(3))+'</td>'
+      +'<td style="padding:6px 8px;font-size:12px;text-align:right;font-weight:700;">'+(r.foc?'FREE':'QR '+r.total.toFixed(3))+'</td></tr>';
   }).join('');
   var disc=parseFloat(inv.discount||0);
   var tot=parseFloat(inv.total_amount||inv.total||sub-disc||0);
@@ -4988,13 +4933,11 @@ function printA4Invoice(inv, items, customer, prodMap) {
     +'<div class="a4-header">'
       +'<div class="a4-header-left"><div style="font-size:17px;font-weight:900;color:#1a237e;">'+s.company+'</div>'
       +'<div style="font-size:10px;margin-top:3px;">&#128205; '+s.address+'</div>'
-      +(s.phone1?'<div style="font-size:10px;">&#128222; '+s.phone1+(s.phone2?' | '+s.phone2:'')+'</div>':'')
-      +'</div>'
+      +(s.phone1?'<div style="font-size:10px;">&#128222; '+s.phone1+(s.phone2?' | '+s.phone2:'')+'</div>':'')+'</div>'
       +'<div class="a4-logo-wrap">'+logoHtml+'</div>'
       +'<div class="a4-header-right" style="direction:rtl;text-align:right;">'
       +'<div style="font-size:15px;font-weight:900;color:#1a237e;font-family:Cairo,sans-serif;">'+s.companyAr+'</div>'
-      +'<div style="font-size:10px;font-family:Cairo,sans-serif;">&#128205; \u0627\u0644\u062f\u0648\u062d\u0629\u060c \u0642\u0637\u0631</div></div>'
-    +'</div>'
+      +'<div style="font-size:10px;font-family:Cairo,sans-serif;">&#128205; \u0627\u0644\u062f\u0648\u062d\u0629\u060c \u0642\u0637\u0631</div></div></div>'
     +'<div class="a4-inv-title"><div style="font-size:13px;font-weight:800;">SALES INVOICE / \u0641\u0627\u062a\u0648\u0631\u0629 \u0628\u064a\u0639</div></div>'
     +'<div class="a4-meta">'
       +'<div><strong>Invoice #:</strong> '+String(invId).padStart(4,'0')+'</div>'
@@ -5003,231 +4946,108 @@ function printA4Invoice(inv, items, customer, prodMap) {
       +(inv.salesman_name?'<div><strong>Salesman:</strong> '+inv.salesman_name+'</div>':'')
       +(inv.cheque_number?'<div><strong>Cheque #:</strong> '+inv.cheque_number+'</div>':'')
     +'</div>'
-    +'<div class="a4-customer">'
-      +'<div><strong>Customer:</strong> '+(customer?customer.name:(inv.customer_name||'Walk-in'))+'</div>'
-      +(customer&&customer.phone?'<div><strong>Phone:</strong> '+customer.phone+'</div>':'')
-    +'</div>'
-    +'<div style="padding:0 16px 8px;">'
-      +'<table style="width:100%;border-collapse:collapse;border:1px solid #ddd;">'
-        +'<thead style="background:#1a237e;color:#fff;"><tr>'
-          +'<th style="padding:7px 8px;font-size:11px;text-align:left;">Product</th>'
-          +'<th style="padding:7px 8px;font-size:11px;text-align:center;">Qty</th>'
-          +'<th style="padding:7px 8px;font-size:11px;text-align:right;">Price</th>'
-          +'<th style="padding:7px 8px;font-size:11px;text-align:right;">Total</th>'
-        +'</tr></thead>'
-        +'<tbody>'+rows+'</tbody>'
-      +'</table></div>'
+    +'<div class="a4-customer"><div><strong>Customer:</strong> '+(customer?customer.name:(inv.customer_name||'Walk-in'))+'</div>'
+      +(customer&&customer.phone?'<div><strong>Phone:</strong> '+customer.phone+'</div>':'')+'</div>'
+    +'<div style="padding:0 16px 8px;"><table style="width:100%;border-collapse:collapse;border:1px solid #ddd;">'
+      +'<thead style="background:#1a237e;color:#fff;"><tr>'
+        +'<th style="padding:7px 8px;font-size:11px;text-align:left;">Product</th>'
+        +'<th style="padding:7px 8px;font-size:11px;text-align:center;">Qty</th>'
+        +'<th style="padding:7px 8px;font-size:11px;text-align:right;">Price</th>'
+        +'<th style="padding:7px 8px;font-size:11px;text-align:right;">Total</th>'
+      +'</tr></thead><tbody>'+rowsHtml+'</tbody></table></div>'
     +'<div style="margin:0 16px 8px;border:1px solid #ddd;border-radius:6px;overflow:hidden;">'
       +(disc>0?'<div style="display:flex;justify-content:space-between;padding:7px 12px;font-size:12px;border-bottom:1px solid #eee;"><span>Subtotal</span><span>QR '+sub.toFixed(3)+'</span></div>':'')
       +(disc>0?'<div style="display:flex;justify-content:space-between;padding:7px 12px;font-size:12px;color:#c62828;border-bottom:1px solid #eee;"><span>Discount</span><span>-QR '+disc.toFixed(3)+'</span></div>':'')
       +'<div style="display:flex;justify-content:space-between;padding:10px 12px;font-size:15px;font-weight:900;background:#f5f5ff;"><span>TOTAL</span><span style="color:#1a237e;">QR '+tot.toFixed(3)+'</span></div>'
       +(inv.payment_type==='cash'&&paid>0?'<div style="display:flex;justify-content:space-between;padding:7px 12px;font-size:12px;border-top:1px solid #eee;"><span>Cash Paid</span><span>QR '+paid.toFixed(3)+'</span></div>':'')
       +(chg>0.001?'<div style="display:flex;justify-content:space-between;padding:7px 12px;font-size:12px;border-top:1px solid #eee;color:#2e7d32;"><span>Change</span><span>QR '+chg.toFixed(3)+'</span></div>':'')
-      +(inv.payment_type==='credit'?'<div style="padding:7px 12px;font-size:11px;color:#c62828;border-top:1px solid #eee;">Credit Sale \u2014 collect later</div>':'')
+      +(inv.payment_type==='credit'?'<div style="padding:7px 12px;font-size:11px;color:#c62828;border-top:1px solid #eee;">Credit Sale</div>':'')
     +'</div>'
     +'<div class="a4-footer"><div><strong>Customer Signature</strong><br><br>_______________________</div>'
     +'<div style="text-align:right;"><strong>Cashier / \u0623\u0645\u064a\u0646 \u0627\u0644\u0635\u0646\u062f\u0648\u0642</strong><br><br>_______________________</div></div>'
     +'</div></div>';
-  window._invHTML = html;
-  showInvoiceViewer(html, 'a4');
+  window._invHTML=html; showInvoiceViewer(html,'a4');
 }
 
-function printThermalReceipt(inv, items, customer, prodMap) {
-  var s = _getS();
-  var invId = inv.invoice_id||inv.id||'----';
-  var logoHtml = s.logo?'<img src="'+s.logo+'" onerror="this.style.display=\'none\'" width="56" height="56" style="border-radius:50%;display:block;margin:0 auto 6px;object-fit:cover;" alt="">':'';
-  var sub=0;
-  var rows=(items||[]).map(function(it){
-    var p=prodMap?(prodMap[it.product_id]||prodMap[String(it.product_id)]):null;
-    var name=it.name||(p&&p.name)||'-';
-    var cpb=(p&&getCasesPerBox(p))||it.bags_per_box||4;
-    var qty=it.quantity||0; var boxes=Math.floor(qty/cpb); var rem=qty%cpb;
-    var qtyStr=boxes>0?(boxes+'bx'+(rem>0?'+'+rem+'bg':'')):(qty+'bg');
-    var total=parseFloat(it.total||0); var foc=it.is_foc==1||it.is_foc===true;
-    if(!foc) sub+=total;
-    return '<div style="display:flex;justify-content:space-between;font-size:11px;margin:3px 0;">'
-      +'<span>'+name+(foc?' (FOC)':'')+' x'+qtyStr+'</span>'
-      +'<span>'+(foc?'FREE':'QR '+total.toFixed(2))+'</span></div>';
+function printThermalReceipt(inv,items,customer,prodMap){
+  var s=_getS();var invId=inv.invoice_id||inv.id||'----';
+  var logoHtml=s.logo?'<img src="'+s.logo+'" onerror="this.style.display=\'none\'" width="56" height="56" style="border-radius:50%;display:block;margin:0 auto 6px;object-fit:cover;" alt="">':'';
+  var rd=_buildRows(items,prodMap);var sub=rd.sub;
+  var rowsHtml=rd.rows.map(function(r){
+    return '<div style="display:flex;justify-content:space-between;font-size:11px;margin:3px 0;"><span>'+r.name+(r.foc?' (FOC)':'')+' x'+r.qtyStr+'</span><span>'+(r.foc?'FREE':'QR '+r.total.toFixed(2))+'</span></div>';
   }).join('');
-  var disc=parseFloat(inv.discount||0);
-  var tot=parseFloat(inv.total_amount||inv.total||sub-disc||0);
-  var paid=parseFloat(inv.cash_paid||(inv.payment_type==='credit'?0:tot)||0);
-  var chg=Math.max(0,paid-tot);
+  var disc=parseFloat(inv.discount||0);var tot=parseFloat(inv.total_amount||inv.total||sub-disc||0);
+  var paid=parseFloat(inv.cash_paid||(inv.payment_type==='credit'?0:tot)||0);var chg=Math.max(0,paid-tot);
   var html='<div class="thermal-receipt" style="padding:10px 8px;width:302px;max-width:302px;box-sizing:border-box;">'
     +logoHtml
     +'<div style="text-align:center;font-size:13px;font-weight:900;">'+s.company+'</div>'
     +(s.companyAr?'<div style="text-align:center;font-size:11px;font-family:Cairo,sans-serif;direction:rtl;">'+s.companyAr+'</div>':'')
     +'<div style="text-align:center;font-size:9px;color:#555;margin-bottom:4px;">'+s.address+(s.phone1?' | '+s.phone1:'')+'</div>'
     +'<hr style="border-top:2px dashed #000;margin:6px 0;">'
-    +'<div style="text-align:center;font-size:13px;font-weight:900;">INVOICE</div>'
-    +'<hr style="border-top:1px dashed #000;margin:4px 0;">'
+    +'<div style="text-align:center;font-size:13px;font-weight:900;">INVOICE</div><hr style="border-top:1px dashed #000;margin:4px 0;">'
     +'<div style="display:flex;justify-content:space-between;font-size:10px;margin:2px 0;"><span>Inv #:</span><span>'+String(invId).padStart(4,'0')+'</span></div>'
     +'<div style="display:flex;justify-content:space-between;font-size:10px;margin:2px 0;"><span>Date:</span><span>'+fmtDate(inv.date||inv.created_at)+(inv.time?' '+inv.time:'')+'</span></div>'
     +(customer?'<div style="display:flex;justify-content:space-between;font-size:10px;margin:2px 0;"><span>Customer:</span><span>'+customer.name+'</span></div>':'')
     +(inv.salesman_name?'<div style="display:flex;justify-content:space-between;font-size:10px;margin:2px 0;"><span>Salesman:</span><span>'+inv.salesman_name+'</span></div>':'')
-    +'<hr style="border-top:1px dashed #000;margin:5px 0;">'
-    +rows
+    +'<hr style="border-top:1px dashed #000;margin:5px 0;">'+rowsHtml
     +'<hr style="border-top:2px solid #000;margin:6px 0;">'
-    +(disc>0?'<div style="display:flex;justify-content:space-between;font-size:11px;margin:2px 0;"><span>Subtotal:</span><span>QR '+sub.toFixed(2)+'</span></div>':'')
-    +(disc>0?'<div style="display:flex;justify-content:space-between;font-size:11px;margin:2px 0;color:#c62828;"><span>Discount:</span><span>-QR '+disc.toFixed(2)+'</span></div>':'')
+    +(disc>0?'<div style="display:flex;justify-content:space-between;font-size:11px;"><span>Subtotal:</span><span>QR '+sub.toFixed(2)+'</span></div>':'')
+    +(disc>0?'<div style="display:flex;justify-content:space-between;font-size:11px;color:#c62828;"><span>Discount:</span><span>-QR '+disc.toFixed(2)+'</span></div>':'')
     +'<div style="display:flex;justify-content:space-between;font-size:14px;font-weight:900;padding:4px 0;border-top:2px solid #000;border-bottom:2px solid #000;margin:4px 0;"><span>TOTAL:</span><span>QR '+tot.toFixed(2)+'</span></div>'
     +(inv.payment_type==='cash'&&paid>0?'<div style="display:flex;justify-content:space-between;font-size:11px;"><span>Cash:</span><span>QR '+paid.toFixed(2)+'</span></div>':'')
     +(chg>0.001?'<div style="display:flex;justify-content:space-between;font-size:11px;color:#2e7d32;"><span>Change:</span><span>QR '+chg.toFixed(2)+'</span></div>':'')
     +(inv.payment_type==='credit'?'<div style="text-align:center;font-size:10px;color:#c62828;">Credit Sale</div>':'')
     +'<hr style="border-top:1px dashed #000;margin:8px 0;">'
-    +'<div style="text-align:center;font-size:10px;">Thank You! \u0634\u0643\u0631\u0627\u064b \u0644\u0643\u0645</div>'
+    +'<div style="text-align:center;font-size:10px;">\u0634\u0643\u0631\u0627\u064b \u0644\u0643\u0645 | Thank You!</div>'
     +'<div style="height:30px;"></div></div>';
-  window._invHTML = html;
-  showInvoiceViewer(html, 'thermal');
+  window._invHTML=html; showInvoiceViewer(html,'thermal');
 }
 
-// Logo handlers
-function handleLogoUpload(event) {
-  var file = event.target.files[0]; if(!file) return;
+// Logo
+function handleLogoUpload(event){
+  var file=event.target.files[0];if(!file)return;
   if(file.size>500000){showToast('Logo must be under 500KB');return;}
-  var reader = new FileReader();
-  reader.onload = function(e) {
-    window._LOGO = e.target.result; window._LOGO_PENDING = e.target.result;
-    var prev=document.getElementById('set-logo-preview'); if(prev){prev.src=e.target.result;prev.style.display='block';}
-    var area=document.getElementById('set-logo-upload-area'); if(area)area.style.display='none';
-    var rb=document.getElementById('set-logo-remove'); if(rb)rb.style.display='';
+  var reader=new FileReader();
+  reader.onload=function(e){
+    window._LOGO=e.target.result;window._LOGO_PENDING=e.target.result;
+    var prev=document.getElementById('set-logo-preview');if(prev){prev.src=e.target.result;prev.style.display='block';}
+    var area=document.getElementById('set-logo-upload-area');if(area)area.style.display='none';
+    var rb=document.getElementById('set-logo-remove');if(rb)rb.style.display='';
     showToast('Logo ready — press Save Settings');
   };
   reader.readAsDataURL(file);
 }
-function removeLogoPreview() {
-  window._LOGO=''; window._LOGO_PENDING='';
-  var prev=document.getElementById('set-logo-preview'); if(prev){prev.src='';prev.style.display='none';}
-  var area=document.getElementById('set-logo-upload-area'); if(area)area.style.display='';
-  var rb=document.getElementById('set-logo-remove'); if(rb)rb.style.display='none';
-  dbPut('settings',{key:'logo',value:''});
-  showToast('Logo removed');
+function removeLogoPreview(){
+  window._LOGO='';window._LOGO_PENDING='';
+  var prev=document.getElementById('set-logo-preview');if(prev){prev.src='';prev.style.display='none';}
+  var area=document.getElementById('set-logo-upload-area');if(area)area.style.display='';
+  var rb=document.getElementById('set-logo-remove');if(rb)rb.style.display='none';
+  dbPut('settings',{key:'logo',value:''});showToast('Logo removed');
 }
 
-// ════════════════════════════════════════════════════════
-// ALL MISSING ONCLICK FUNCTIONS
-// ════════════════════════════════════════════════════════
-function logoutUser() {
-  localStorage.removeItem('pos_auth_'+STORE_ID); localStorage.removeItem('employee_name');
-  STORE_ID=null; showScreen('login-screen'); showToast('Logged out');
-}
-function resetStep2() {
-  var v=(document.getElementById('reset-input-1')||{}).value||'';
-  if(v.trim().toUpperCase()!=='DELETE'){showToast('Type DELETE to continue');return;}
-  document.getElementById('reset-step-1').style.display='none';
-  document.getElementById('reset-step-2').style.display='';
-}
-async function doResetData() {
-  var v=(document.getElementById('reset-input-2')||{}).value||'';
-  if(v.trim().toUpperCase()!=='CONFIRM'){showToast('Type CONFIRM to delete');return;}
-  try {
-    await sb.from('invoices').delete().eq('store_id',STORE_ID);
-    await sb.from('customers').delete().eq('store_id',STORE_ID);
-    await sb.from('products').delete().eq('store_id',STORE_ID);
-    await sb.from('expenses').delete().eq('store_id',STORE_ID);
-    Object.keys(localCache).forEach(function(k){delete localCache[k];});
-    document.getElementById('reset-modal').style.display='none';
-    showToast('All data deleted!'); showScreen('home-screen');
-  } catch(e){showToast('Reset failed: '+e.message);}
-}
-async function exportData() {
-  try {
-    var b=new Blob([JSON.stringify({invoices:await dbGetAll('invoices'),products:await dbGetAll('products'),customers:await dbGetAll('customers'),expenses:await dbGetAll('expenses'),exported_at:new Date().toISOString()},null,2)],{type:'application/json'});
-    var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='navar_backup_'+today()+'.json';a.click();
-    showToast('Backup downloaded!');
-  } catch(e){showToast('Export failed: '+e.message);}
-}
-async function exportCSV() {
-  try {
-    var invs=await dbGetAll('invoices'); if(!invs.length){showToast('No invoices');return;}
-    var blob=new Blob([['ID,Date,Customer,Total,Payment'].concat(invs.map(function(i){return [i.id||i.invoice_id||'',i.date||'',(i.customer_name||'Walk-in').replace(/,/g,' '),parseFloat(i.total||i.total_amount||0).toFixed(3),i.payment_type||''].join(',');})).join('\n')],{type:'text/csv'});
-    var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='invoices_'+today()+'.csv';a.click();
-    showToast('CSV downloaded!');
-  } catch(e){showToast('CSV failed: '+e.message);}
-}
-async function filterOrders(status) {
-  ['pending','ready','done'].forEach(function(s){var b=document.getElementById('ord-tab-'+s);if(b)b.classList.toggle('active',s===status);});
-  var list=document.getElementById('orders-list'); if(!list)return;
-  var orders=JSON.parse(localStorage.getItem('advance_orders_'+STORE_ID)||'[]');
-  var f=orders.filter(function(o){return status==='pending'?o.status==='pending':status==='ready'?o.status==='ready':(o.status==='done'||o.status==='delivered');});
-  list.innerHTML=f.length?f.map(function(o){return '<div class="card" style="padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;"><div><div style="font-weight:700;">'+(o.customer_name||'Customer')+'</div><div style="font-size:.8rem;color:var(--text2);">'+(o.date||'')+' QR '+parseFloat(o.total||0).toFixed(2)+'</div></div><span class="badge badge-'+(o.status==='pending'?'gold':o.status==='ready'?'green':'navy')+'">'+o.status+'</span></div>';}).join(''):'<div class="empty-state"><div class="empty-state-text">No '+status+' orders</div></div>';
-}
-function openOrderModal() {
-  var modal=document.getElementById('order-modal');
-  if(modal){dbGetAll('customers').then(function(custs){var s=document.getElementById('ord-customer');if(s)s.innerHTML='<option value="">-- Select --</option>'+custs.map(function(c){return '<option value="'+(c.id||c.customer_id)+'">'+c.name+'</option>';}).join('');});var dd=document.getElementById('ord-date');if(dd)dd.value=today();openModal('order-modal');}
-}
-function saveOrder() {
-  var sel=document.getElementById('ord-customer');
-  var name=sel&&sel.selectedIndex>0?sel.options[sel.selectedIndex].text:'';
-  if(!name){showToast('Select customer');return;}
-  var orders=JSON.parse(localStorage.getItem('advance_orders_'+STORE_ID)||'[]');
-  orders.unshift({id:Date.now(),customer_name:name,notes:(document.getElementById('ord-notes')||{}).value||'',items:(document.getElementById('ord-items')||{}).value||'',status:'pending',date:(document.getElementById('ord-date')||{}).value||today(),total:0});
-  localStorage.setItem('advance_orders_'+STORE_ID,JSON.stringify(orders));
-  closeModal('order-modal'); showToast('Order saved!'); filterOrders('pending');
-}
+// ════════════════════════════════
+// MISSING ONCLICK FUNCTIONS
+// ════════════════════════════════
+function logoutUser(){localStorage.removeItem('pos_auth_'+STORE_ID);localStorage.removeItem('employee_name');STORE_ID=null;showScreen('login-screen');showToast('Logged out');}
+function resetStep2(){var v=(document.getElementById('reset-input-1')||{}).value||'';if(v.trim().toUpperCase()!=='DELETE'){showToast('Type DELETE to continue');return;}document.getElementById('reset-step-1').style.display='none';document.getElementById('reset-step-2').style.display='';}
+async function doResetData(){var v=(document.getElementById('reset-input-2')||{}).value||'';if(v.trim().toUpperCase()!=='CONFIRM'){showToast('Type CONFIRM to delete');return;}try{await sb.from('invoices').delete().eq('store_id',STORE_ID);await sb.from('customers').delete().eq('store_id',STORE_ID);await sb.from('products').delete().eq('store_id',STORE_ID);await sb.from('expenses').delete().eq('store_id',STORE_ID);Object.keys(localCache).forEach(function(k){delete localCache[k];});document.getElementById('reset-modal').style.display='none';showToast('All data deleted!');showScreen('home-screen');}catch(e){showToast('Reset failed: '+e.message);}}
+async function exportData(){try{var b=new Blob([JSON.stringify({invoices:await dbGetAll('invoices'),products:await dbGetAll('products'),customers:await dbGetAll('customers'),expenses:await dbGetAll('expenses'),exported_at:new Date().toISOString()},null,2)],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='navar_backup_'+today()+'.json';a.click();showToast('Backup downloaded!');}catch(e){showToast('Export failed: '+e.message);}}
+async function exportCSV(){try{var invs=await dbGetAll('invoices');if(!invs.length){showToast('No invoices');return;}var blob=new Blob([['ID,Date,Customer,Total,Payment'].concat(invs.map(function(i){return[i.id||i.invoice_id||'',i.date||'',(i.customer_name||'Walk-in').replace(/,/g,' '),parseFloat(i.total||i.total_amount||0).toFixed(3),i.payment_type||''].join(',');})).join('\n')],{type:'text/csv'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='invoices_'+today()+'.csv';a.click();showToast('CSV downloaded!');}catch(e){showToast('CSV failed: '+e.message);}}
+async function filterOrders(status){['pending','ready','done'].forEach(function(s){var b=document.getElementById('ord-tab-'+s);if(b)b.classList.toggle('active',s===status);});var list=document.getElementById('orders-list');if(!list)return;var orders=JSON.parse(localStorage.getItem('advance_orders_'+STORE_ID)||'[]');var f=orders.filter(function(o){return status==='pending'?o.status==='pending':status==='ready'?o.status==='ready':(o.status==='done'||o.status==='delivered');});list.innerHTML=f.length?f.map(function(o){return '<div class="card" style="padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;"><div><div style="font-weight:700;">'+(o.customer_name||'Customer')+'</div><div style="font-size:.8rem;color:var(--text2);">'+(o.date||'')+' QR '+parseFloat(o.total||0).toFixed(2)+'</div></div><span class="badge badge-'+(o.status==='pending'?'gold':o.status==='ready'?'green':'navy')+'">'+o.status+'</span></div>';}).join(''):'<div class="empty-state"><div class="empty-state-text">No '+status+' orders</div></div>';}
+function openOrderModal(){var modal=document.getElementById('order-modal');if(modal){dbGetAll('customers').then(function(custs){var s=document.getElementById('ord-customer');if(s)s.innerHTML='<option value="">-- Select --</option>'+custs.map(function(c){return '<option value="'+(c.id||c.customer_id)+'">'+c.name+'</option>';}).join('');});var dd=document.getElementById('ord-date');if(dd)dd.value=today();openModal('order-modal');}}
+function saveOrder(){var sel=document.getElementById('ord-customer');var name=sel&&sel.selectedIndex>0?sel.options[sel.selectedIndex].text:'';if(!name){showToast('Select customer');return;}var orders=JSON.parse(localStorage.getItem('advance_orders_'+STORE_ID)||'[]');orders.unshift({id:Date.now(),customer_name:name,notes:(document.getElementById('ord-notes')||{}).value||'',items:(document.getElementById('ord-items')||{}).value||'',status:'pending',date:(document.getElementById('ord-date')||{}).value||today(),total:0});localStorage.setItem('advance_orders_'+STORE_ID,JSON.stringify(orders));closeModal('order-modal');showToast('Order saved!');filterOrders('pending');}
 function confirmReturn(){closeModal('truck-return-modal');closeModal('return-modal');}
 function confirmReject(){closeModal('reject-modal');closeModal('approval-modal');showToast('Rejected');}
-function setCPType(type){
-  ['cash','cheque','partial'].forEach(function(t){var b=document.getElementById('cp-tab-'+t);if(b)b.classList.toggle('active',t===type);});
-  var cf=document.getElementById('cp-cheque-fields');if(cf)cf.style.display=type==='cheque'?'':'none';
-  var pf=document.getElementById('cp-partial-fields');if(pf)pf.style.display=type==='partial'?'':'none';
-  window._cpType=type;
-}
-function setCPPrint(type){
-  ['a4','thermal','none'].forEach(function(t){var b=document.getElementById('cp-print-'+t);if(b)b.classList.toggle('active',t===type);});
-  window._cpPrint=type;
-}
-function tlSwitchTab(tab){
-  ['load','report'].forEach(function(t){var b=document.getElementById('tl-tab-'+t);if(b){b.classList.toggle('btn-primary',t===tab);b.classList.toggle('btn-outline',t!==tab);}});
-  var lp=document.getElementById('tl-load-section');if(lp)lp.style.display=tab==='load'?'':'none';
-  var rp=document.getElementById('tl-report-section');if(rp)rp.style.display=tab==='report'?'':'none';
-}
-function printStockCount(){
-  var el=document.getElementById('stockcount-list')||document.getElementById('sc-list');
-  if(!el){showToast('Nothing to print');return;}
-  var w=window.open('','_blank');if(!w){showToast('Allow popups');return;}
-  w.document.write('<html><head><title>Stock Count</title><style>body{font-family:sans-serif;padding:20px;}</style></head><body><h2>Stock Count - '+fmtDate(today())+'</h2>'+el.innerHTML+'</body></html>');
-  w.document.close();w.print();
-}
-async function loadStockHistory(){
-  ['truck','warehouse','both','history'].forEach(function(t){var b=document.getElementById('sc-tab-'+t);if(b)b.classList.toggle('active',t==='history');});
-  var el=document.getElementById('stockcount-list')||document.getElementById('sc-list'); if(!el)return;
-  var h=JSON.parse(localStorage.getItem('stock_count_history_'+STORE_ID)||'[]');
-  el.innerHTML=h.length?h.slice().reverse().slice(0,30).map(function(x){return '<div class="card" style="padding:12px;margin-bottom:8px;"><div style="font-weight:700;">'+fmtDate(x.date||x.counted_at||'')+' - '+(x.mode||'Both')+'</div><div style="font-size:.8rem;color:var(--text2);">'+(x.items||[]).length+' products counted</div></div>';}).join(''):'<div class="empty-state"><div class="empty-state-text">No history</div></div>';
-}
-function removeProductPhoto(){
-  var wrap=document.getElementById('photo-preview-wrap');var area=document.getElementById('photo-upload-area');
-  var inp=document.getElementById('prod-photo-input')||document.getElementById('prod-photo');
-  var d=document.getElementById('prod-photo-data');
-  if(wrap)wrap.style.display='none';if(area)area.style.display='';if(inp)inp.value='';if(d)d.value='';
-  if(window._editingProductId)localStorage.removeItem('prod_photo_'+window._editingProductId);
-  showToast('Photo removed');
-}
+function setCPType(type){['cash','cheque','partial'].forEach(function(t){var b=document.getElementById('cp-tab-'+t);if(b)b.classList.toggle('active',t===type);});var cf=document.getElementById('cp-cheque-fields');if(cf)cf.style.display=type==='cheque'?'':'none';var pf=document.getElementById('cp-partial-fields');if(pf)pf.style.display=type==='partial'?'':'none';window._cpType=type;}
+function setCPPrint(type){['a4','thermal','none'].forEach(function(t){var b=document.getElementById('cp-print-'+t);if(b)b.classList.toggle('active',t===type);});window._cpPrint=type;}
+function tlSwitchTab(tab){['load','report'].forEach(function(t){var b=document.getElementById('tl-tab-'+t);if(b){b.classList.toggle('btn-primary',t===tab);b.classList.toggle('btn-outline',t!==tab);}});var lp=document.getElementById('tl-load-section');if(lp)lp.style.display=tab==='load'?'':'none';var rp=document.getElementById('tl-report-section');if(rp)rp.style.display=tab==='report'?'':'none';}
+function printStockCount(){var el=document.getElementById('stockcount-list')||document.getElementById('sc-list');if(!el){showToast('Nothing to print');return;}var w=window.open('','_blank');if(!w){showToast('Allow popups');return;}w.document.write('<html><head><title>Stock Count</title><style>body{font-family:sans-serif;padding:20px;}</style></head><body><h2>Stock Count - '+fmtDate(today())+'</h2>'+el.innerHTML+'</body></html>');w.document.close();w.print();}
+async function loadStockHistory(){['truck','warehouse','both','history'].forEach(function(t){var b=document.getElementById('sc-tab-'+t);if(b)b.classList.toggle('active',t==='history');});var el=document.getElementById('stockcount-list')||document.getElementById('sc-list');if(!el)return;var h=JSON.parse(localStorage.getItem('stock_count_history_'+STORE_ID)||'[]');el.innerHTML=h.length?h.slice().reverse().slice(0,30).map(function(x){return '<div class="card" style="padding:12px;margin-bottom:8px;"><div style="font-weight:700;">'+fmtDate(x.date||x.counted_at||'')+' - '+(x.mode||'Both')+'</div><div style="font-size:.8rem;color:var(--text2);">'+(x.items||[]).length+' products counted</div></div>';}).join(''):'<div class="empty-state"><div class="empty-state-text">No history</div></div>';}
+function removeProductPhoto(){var wrap=document.getElementById('photo-preview-wrap');var area=document.getElementById('photo-upload-area');var inp=document.getElementById('prod-photo-input')||document.getElementById('prod-photo');var d=document.getElementById('prod-photo-data');if(wrap)wrap.style.display='none';if(area)area.style.display='';if(inp)inp.value='';if(d)d.value='';if(window._editingProductId)localStorage.removeItem('prod_photo_'+window._editingProductId);showToast('Photo removed');}
 function openSetTargetModal(){var m=document.getElementById('set-target-modal');if(m)m.style.display='flex';else if(typeof renderTargets==='function')renderTargets('daily');}
 function openAddStockModal(){if(typeof openProductModal==='function')openProductModal(null);else showToast('Use + to add product');}
-async function shareStatement(){
-  var id=window.selectedCustomerId;if(!id){showToast('No customer selected');return;}
-  var invs=await dbGetByIndex('invoices','customer_id',id);
-  var cust=await dbGet('customers',id);
-  var total=invs.reduce(function(a,i){return a+parseFloat(i.total||i.total_amount||0);},0);
-  var text='Statement for '+(cust?cust.name:'Customer')+'\nTotal: QR '+total.toFixed(2)+'\nDate: '+fmtDate(today());
-  if(navigator.share)navigator.share({title:'Statement',text:text});
-  else navigator.clipboard.writeText(text).then(function(){showToast('Copied!');});
-}
-async function submitHandover(){
-  var emp=localStorage.getItem('employee_name')||'Employee';
-  var d=today();
-  var amtEl=document.getElementById('handover-amount');
-  var invs=await dbGetAll('invoices');
-  var cash=invs.filter(function(i){return i.date===d&&i.payment_type==='cash';}).reduce(function(a,i){return a+parseFloat(i.total||i.total_amount||0);},0);
-  var amount=amtEl&&amtEl.value?parseFloat(amtEl.value)||cash:cash;
-  var notes=(document.getElementById('handover-notes')||{}).value||'';
-  var ho=JSON.parse(localStorage.getItem('handovers_'+STORE_ID)||'[]');
-  ho.push({employee:emp,date:d,time:new Date().toTimeString().slice(0,5),amount:amount,notes:notes,submitted_at:new Date().toISOString()});
-  localStorage.setItem('handovers_'+STORE_ID,JSON.stringify(ho));
-  showToast('Handover submitted - QR '+amount.toFixed(2));
-  loadHandover();
-}
+async function shareStatement(){var id=window.selectedCustomerId;if(!id){showToast('No customer selected');return;}var invs=await dbGetByIndex('invoices','customer_id',id);var cust=await dbGet('customers',id);var total=invs.reduce(function(a,i){return a+parseFloat(i.total||i.total_amount||0);},0);var text='Statement for '+(cust?cust.name:'Customer')+'\nTotal: QR '+total.toFixed(2)+'\nDate: '+fmtDate(today());if(navigator.share)navigator.share({title:'Statement',text:text});else navigator.clipboard.writeText(text).then(function(){showToast('Copied!');});}
+async function submitHandover(){var emp=localStorage.getItem('employee_name')||'Employee';var d=today();var amtEl=document.getElementById('handover-amount');var invs=await dbGetAll('invoices');var cash=invs.filter(function(i){return i.date===d&&i.payment_type==='cash';}).reduce(function(a,i){return a+parseFloat(i.total||i.total_amount||0);},0);var amount=amtEl&&amtEl.value?parseFloat(amtEl.value)||cash:cash;var notes=(document.getElementById('handover-notes')||{}).value||'';var ho=JSON.parse(localStorage.getItem('handovers_'+STORE_ID)||'[]');ho.push({employee:emp,date:d,time:new Date().toTimeString().slice(0,5),amount:amount,notes:notes,submitted_at:new Date().toISOString()});localStorage.setItem('handovers_'+STORE_ID,JSON.stringify(ho));showToast('Handover submitted - QR '+amount.toFixed(2));loadHandover();}
 
 </script>
     </body></html>
