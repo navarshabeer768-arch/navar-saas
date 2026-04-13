@@ -491,6 +491,27 @@ tr:hover td{background:#fafbff;}
       <div class="fg"><label class="fl">Phone</label><input type="text" class="fi" id="u-phone" placeholder="+974 ..."></div>
       <input type="hidden" id="u-eid">
     </div>
+      <div class="fg">
+        <label class="fl" style="font-weight:700;margin-bottom:8px;">🔐 POS Permissions</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;background:var(--bg2);border-radius:8px;padding:12px;">
+          <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer;"><input type="checkbox" id="up-sales" value="sales" checked> New Sale</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer;"><input type="checkbox" id="up-customers" value="customers"> Customers</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer;"><input type="checkbox" id="up-invoices" value="invoices"> Invoices</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer;"><input type="checkbox" id="up-inventory" value="inventory"> Inventory</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer;"><input type="checkbox" id="up-truck" value="truck"> Truck Load</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer;"><input type="checkbox" id="up-expenses" value="expenses"> Expenses</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer;"><input type="checkbox" id="up-reports" value="reports"> Reports</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer;"><input type="checkbox" id="up-targets" value="targets"> Targets</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer;"><input type="checkbox" id="up-handover" value="handover"> Handover</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer;"><input type="checkbox" id="up-discount" value="discount"> Discount</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer;"><input type="checkbox" id="up-refund" value="refund"> Refunds</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer;"><input type="checkbox" id="up-settings" value="settings"> Settings</label>
+        </div>
+        <div style="margin-top:6px;display:flex;gap:6px;">
+          <button type="button" class="btn btn-o" style="font-size:.75rem;padding:4px 10px;" onclick="(function(){['sales','customers','invoices','inventory','truck','expenses','reports','targets','handover','discount','refund','settings'].forEach(function(k){var el=document.getElementById('up-'+k);if(el)el.checked=true;});})()">Select All</button>
+          <button type="button" class="btn btn-o" style="font-size:.75rem;padding:4px 10px;" onclick="(function(){['sales','customers','invoices','inventory','truck','expenses','reports','targets','handover','discount','refund','settings'].forEach(function(k){var el=document.getElementById('up-'+k);if(el)el.checked=false;});})()">Clear All</button>
+        </div>
+      </div>
     <div class="mf"><button class="btn btn-o" id="mc-user2">Cancel</button><button class="btn btn-p" id="btn-save-user">Save User</button></div>
   </div>
 </div>
